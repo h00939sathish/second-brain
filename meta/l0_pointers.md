@@ -1,4 +1,4 @@
-# L0 pointers (auto-generated 2026-08-06T12:06:01Z) - 12 active claims
+# L0 pointers (auto-generated 2026-08-06T12:06:24Z) - 12 active claims
 # format: [status] claim --- source (see vault for evidence)
 - [active] GitHub gh accounts can drift from owner h00939sathish; fix: gh auth switch --user h00939sathish && gh auth setup-git --- memory:github
 - [active] TITAN trading OS at D:\projects\Project TITAN (repo h00939sathish/Project-TITAN PUBLIC), Rust+PyO3 on system python C:\Python314, TWS paper 7497, acct DUQ284074. ADR-019 release gate, ADR-020 strict recovery. --- memory:titan
