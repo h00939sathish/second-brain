@@ -1,0 +1,15 @@
+{
+  "vault_version": 1,
+  "sweep": {
+    "expire_unreviewed_after_days": 120,
+    "expire_never_after_days": 365,
+    "stale_after_days": 90
+  },
+  "recall": {
+    "withhold": [
+      "expired",
+      "superseded",
+      "disputed"
+    ]
+  }
+}

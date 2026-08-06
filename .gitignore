@@ -1,0 +1,7 @@
+# state & lock files
+.lock
+*.tmp
+# L2 transcripts are owned by Hermes session_search - keep them out of git
+sessions/*.json
+# large blobs
+*.log
