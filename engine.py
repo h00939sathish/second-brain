@@ -237,6 +237,19 @@ def cmd_claim(args, cfg):
     }
     body = f"**Claim:** {args.text}\n\n**Evidence:** {args.source or '(none attached)'}\n\n" \
            f"Created {now()}. Verify source before trusting; update `reviewed_at` on review.\n"
+    # auto-link to existing claims sharing a tag (associative graph edges)
+    if args.tags:
+        mine = set(t.strip() for t in args.tags.split(",") if t.strip())
+        rel = []
+        for other in all_claims():
+            if other["id"] == cid:
+                continue
+            their_tags = set(t.strip() for t in
+                             (other["fm"].get("tags") or "").split(",") if t.strip())
+            if mine & their_tags:
+                rel.append(other["id"])
+        if rel:
+            body += "\n**Related:** " + " ".join(f"[[{r}]]" for r in sorted(rel)) + "\n"
     content = frontmatter_block(fm) + "\n" + body
     atomic_write(claim_path(cid), content)
     subprocess.run(["git", "add", "-A"], cwd=VAULT, capture_output=True)
@@ -259,8 +272,10 @@ def cmd_supersede(args, cfg):
     c["fm"]["status"] = "superseded"
     c["fm"]["superseded_by"] = new
     n["fm"]["supersedes"] = old
-    atomic_write(c["path"], frontmatter_block(c["fm"]) + "\n" + c["body"] + "\n")
-    atomic_write(n["path"], frontmatter_block(n["fm"]) + "\n" + n["body"] + "\n")
+    old_body = c["body"] + f"\n\nSuperseded by [[{new}]] on {now()}.\n"
+    new_body = n["body"] + f"\n\nSupersedes [[{old}]] (see superseded chain).\n"
+    atomic_write(c["path"], frontmatter_block(c["fm"]) + "\n" + old_body + "\n")
+    atomic_write(n["path"], frontmatter_block(n["fm"]) + "\n" + new_body + "\n")
     subprocess.run(["git", "add", "-A"], cwd=VAULT, capture_output=True)
     subprocess.run(["git", "commit", "-m", f"supersede {old} -> {new}"],
                    cwd=VAULT, capture_output=True)
@@ -388,6 +403,38 @@ def cmd_sweep(args, cfg):
     return 0
 
 
+def cmd_related(args, cfg):
+    """Graph traversal: claims sharing a tag, a supersede edge, or a body [[link]]."""
+    c = get_claim(args.id)
+    if not c:
+        print(f"claim {args.id} not found")
+        return 1
+    my_tags = set(t.strip() for t in (c["fm"].get("tags") or "").split(",") if t.strip())
+    links = set(re.findall(r"\[\[([^\]|]+)", c["raw"])) | set(re.findall(r"\[\[([^\]|]+)", c["body"]))
+    hits = {}
+    for other in all_claims():
+        if other["id"] == args.id:
+            continue
+        their_tags = set(t.strip() for t in (other["fm"].get("tags") or "").split(",") if t.strip())
+        why = []
+        if my_tags & their_tags:
+            why.append("shared-tag:" + ",".join(sorted(my_tags & their_tags)))
+        if other["id"] in links or other["id"] in (c["fm"].get("superseded_by") or ""):
+            why.append("wikilink")
+        if c["id"] in re.findall(r"\[\[([^\]|]+)\]\]", other["body"]):
+            why.append("backlink")
+        if why:
+            hits[other["id"]] = why
+    if not hits:
+        print(f"no related claims to {args.id}")
+        return 0
+    print(f"== RELATED: {args.id} ==")
+    for cid in sorted(hits):
+        oc = get_claim(cid)
+        print(f"  [[{cid}]]  ({', '.join(hits[cid])})  {oc['fm'].get('claim','')[:80]}")
+    return 0
+
+
 def main():
     ap = argparse.ArgumentParser(description="Hermes second-brain engine")
     sub = ap.add_subparsers(dest="cmd")
@@ -420,6 +467,9 @@ def main():
     p_ver = sub.add_parser("verify")
     p_ver.add_argument("id")
 
+    p_rel = sub.add_parser("related")
+    p_rel.add_argument("id")
+
     p_sw = sub.add_parser("sweep")
     p_sw.add_argument("--commit", action="store_true")
 
@@ -437,7 +487,8 @@ def main():
         handlers = {
             "init": cmd_init, "claim": cmd_claim, "supersede": cmd_supersede,
             "dispute": cmd_dispute, "recall": cmd_recall, "status": cmd_status,
-            "sweep": cmd_sweep, "verify": lambda a, c: (
+            "sweep": cmd_sweep, "related": cmd_related,
+            "verify": lambda a, c: (
                 print("OK - chain clean" if not chain_issues(a.id, set())
                       else "\n".join(chain_issues(a.id, set()))),
                 0 if not chain_issues(a.id, set()) else 1)[1],
