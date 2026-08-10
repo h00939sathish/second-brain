@@ -1,4 +1,4 @@
-# L0 pointers (auto-generated 2026-08-10T10:08:17Z) - 17 active claims
+# L0 pointers (auto-generated 2026-08-10T10:26:11Z) - 17 active claims
 # format: [status] claim --- source (see vault for evidence)
 - [active] OmniRoute unused-but-valuable features (2026-08-10 audit): combos+routing (14 strategies, empty), fallback chains (empty), evals (empty), webhooks (empty), middleware hooks (empty), model aliases, traffic inspector, memory engine, local inference providers (ollama-local/lm-studio/llama-cpp), search MCP tool w/ multi-provider failover. --- session:2026-08-10 omniroute audit
 - [active] OpenRouter connection 'main' keyed+synced but ZERO inference use as of 2026-08-10 (only model-sync calls); free-tier models work via gateway (verified gemma-4-31b:free). Best value: use as failover tier in combos/fallback chains. --- session:2026-08-10 omniroute audit
