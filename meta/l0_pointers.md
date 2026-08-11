@@ -1,4 +1,4 @@
-# L0 pointers (auto-generated 2026-08-10T10:39:11Z) - 24 active claims
+# L0 pointers (auto-generated 2026-08-11T04:55:04Z) - 24 active claims
 # format: [status] claim --- source (see vault for evidence)
 - [active] BB pilot 2026-08-09 (acronis.work): PLAN GATE validated — boilerplate→defensive reframe; beta-cloud clean; awaiting H1 token. just-scrape installed+keyed (SGAI_API_KEY). PrimeAgent is Linux-only (not usable on this Windows host). --- memory:2026-08 trimmed from TITAN FX entry
 - [active] OmniRoute unused-but-valuable features (2026-08-10 audit): combos+routing (14 strategies, empty), fallback chains (empty), evals (empty), webhooks (empty), middleware hooks (empty), model aliases, traffic inspector, memory engine, local inference providers (ollama-local/lm-studio/llama-cpp), search MCP tool w/ multi-provider failover. --- session:2026-08-10 omniroute audit
