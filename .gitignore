@@ -5,3 +5,7 @@
 sessions/*.json
 # large blobs
 *.log
+# python + MCP server deps
+__pycache__/
+*.pyc
+mcp/.venv/
