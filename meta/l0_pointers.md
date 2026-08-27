@@ -1,12 +1,20 @@
-# L0 pointers (auto-generated 2026-08-27T06:56:32Z) - 25 active claims
-# format: [status] claim --- source (see vault for evidence)
-- [active] OmniRoute (v3.8.48, localhost:20128, data C:\Users\h0093\.omniroute) failures diagnosed 2026-08-18: (1) Hermes default oc/deepseek-v4-flash-free = opencode Console free tier, ALWAYS 429 rate-limited; (2) agy/gemini-3.1-pro-high trips circuit breaker -> "all credentials cooling down" after Gemini free-tier RPM caps; (3) oc/nemotron-3-super-free + oc/minimax-m3-free + oc/qwen3.6-plus-free return 401 "not supported" (phantom aliases, upstream Console rejects them); (4) auto/* combos fail "Maximum combo retry limit reached" because pool is 67 models mostly dead (duckduckgo/chipotle exhausted, ollama-cloud 403 subscription for deepseek, lmarena crashes with TypeError TextDecoder bug in v3.8.48). WORKING verified live: agy/gemini-3.1-pro-high, agy/gemini-3.5-flash-medium, agy/gemini-2.5-flash (all 1M ctx), kimi-coding/kimi-k2.6 (262K), openrouter/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free (256K), openrouter/nvidia/nemotron-3-ultra-550b-a55b:free (1M), nvidia/openai/gpt-oss-20b (400K). FIX APPLIED: created priority combo "hermes-stable" (agy gemini 3.5-flash-medium -> agy gemini-2.5-flash -> kimi-k2.6 -> openrouter nemotron nano free -> openrouter nemotron ultra free -> nvidia gpt-oss-20b), set hermes config model.default + providers.omnirouter.model = hermes-stable. Gateway management auth: Bearer sk-23168a82085d432c-77ca9c-4a9d34cd (hermes key, has manage scope). --- session:2026-08-18 omniroute hermes fix
-- [active] BB pilot 2026-08-09 (acronis.work): PLAN GATE validated — boilerplate→defensive reframe; beta-cloud clean; awaiting H1 token. just-scrape installed+keyed (SGAI_API_KEY). PrimeAgent is Linux-only (not usable on this Windows host). --- memory:2026-08 trimmed from TITAN FX entry
-- [active] OmniRoute unused-but-valuable features (2026-08-10 audit): combos+routing (14 strategies, empty), fallback chains (empty), evals (empty), webhooks (empty), middleware hooks (empty), model aliases, traffic inspector, memory engine, local inference providers (ollama-local/lm-studio/llama-cpp), search MCP tool w/ multi-provider failover. --- session:2026-08-10 omniroute audit
-- [active] Hermes runs on OWN venv (AppData\Local\hermes\hermes-agent\venv, Py3.11) NOT system C:\Python314. Install tool deps via uv.exe pip install --python <venv>\Scripts\python.exe. Config via 'hermes config set' only (YAML patch refused). --- memory:hermes env
-- [active] OpenRouter connection 'main' keyed+synced but ZERO inference use as of 2026-08-10 (only model-sync calls); free-tier models work via gateway (verified gemma-4-31b:free). Best value: use as failover tier in combos/fallback chains. --- session:2026-08-10 omniroute audit
-- [active] Job applications: ALWAYS apply from aisathish27@gmail.com (creds in hermes .env JOB_APPLY_EMAIL/PASSWORD; never print pw). Naukri login email = h00939sathish@gmail.com. --- memory:jobapps
-- [active] HARD RULE (plan_debate.py): run the NVIDIA+MiniMax→gemini→deepseek debate EVERY TIME for planning/verdicts; NEVER do solo verdicts/tests pre-debate. GOTCHA: 'X doc' input → produce WORKPLAN. --- memory:plan_debate
-- [active] TITAN FX prior-window pull data quirks: dukascopy_1m_ba_prior 2021-08→2025-07 (WF-v2 Step 5 OOS); bid/ask CONTRACT only (spread data unreliable); HistData M1 ASCII timestamps = single-quote EST (cross-check, NOT a substitute for the dukascopy source). --- memory:titan-fx prior-window pull
-- [active] TITAN pytest resolves titan from the installed WHEEL (site-packages), NOT src/ — sync .py changes to site-packages or rebuild .pyd or tests fail. --- memory:titan pytest
-- [active] OmniRoute gateway: dashboard password is default CHANGEME; auth via curl POST /api/auth/login (auth_token in Set-Cookie) — no CDP needed. jina-reader connection 'Jina Reader Free' wired (free key, 1M fetches/mo). Gateway /v1/web/fetch forwards ONLY url/provider/format — use r.jina.ai direct (Bearer key) for full X-* header surface. /v1/search works zero-config via ollama-search. --- session:2026-08-10 omniroute audit; skill omniroute-gateway
+# Brain (auto-generated 2026-08-27T07:25:42Z)
+# Call brain_session_start on session begin. brain_recall for knowledge.
+
+## Context
+- [antigravity] Coordination layer added: sessions, context notes, dashboard. 16 MCP tools total (second-brain)
+
+## Knowledge (25 active)
+- [active] OmniRoute (v3.8.48, localhost:20128, data C:\Users\h0093\.omniroute) failures diagnosed 2026-08-18: (1) Hermes defaul... [[20260818-a730d9]]
+- [active] BB pilot 2026-08-09 (acronis.work): PLAN GATE validated — boilerplate→defensive reframe; beta-cloud clean; awaiting H... [[20260810-fcffa8]]
+- [active] OmniRoute unused-but-valuable features (2026-08-10 audit): combos+routing (14 strategies, empty), fallback chains (em... [[20260810-e555db]]
+- [active] Hermes runs on OWN venv (AppData\Local\hermes\hermes-agent\venv, Py3.11) NOT system C:\Python314. Install tool deps v... [[20260810-ded7e7]]
+- [active] OpenRouter connection 'main' keyed+synced but ZERO inference use as of 2026-08-10 (only model-sync calls); free-tier ... [[20260810-d1e811]]
+- [active] Job applications: ALWAYS apply from aisathish27@gmail.com (creds in hermes .env JOB_APPLY_EMAIL/PASSWORD; never print... [[20260810-c67d9c]]
+- [active] HARD RULE (plan_debate.py): run the NVIDIA+MiniMax→gemini→deepseek debate EVERY TIME for planning/verdicts; NEVER do ... [[20260810-73c30b]]
+- [active] TITAN FX prior-window pull data quirks: dukascopy_1m_ba_prior 2021-08→2025-07 (WF-v2 Step 5 OOS); bid/ask CONTRACT on... [[20260810-6b29e8]]
+- [active] TITAN pytest resolves titan from the installed WHEEL (site-packages), NOT src/ — sync .py changes to site-packages or... [[20260810-68f2e1]]
+- [active] OmniRoute gateway: dashboard password is default CHANGEME; auth via curl POST /api/auth/login (auth_token in Set-Cook... [[20260810-63919f]]
+- [active] Bug bounty/OSINT PLAN GATE (compulsory): before agent-driven recon on a new target run python ~/.hermes/scripts/bb_pl... [[20260810-41e25d]]
+- [active] Telegram delivery targets: horoscope→-1004366479436; trade reports (08:00/EOD 01:35 IST)→-1004335891979. Hermes CLI u... [[20260810-34764d]]
+- ... and 25 more (run brain_recall)
