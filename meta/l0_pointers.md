@@ -1,11 +1,13 @@
-# Brain (auto-generated 2026-08-27T07:36:00Z)
+# Brain (auto-generated 2026-08-27T07:55:38Z)
 # Call brain_session_start on session begin. brain_recall for knowledge.
 
 ## Context
+- [codex] Postgres port 5433 has schema v2 applied; connection pool max=10 (fintrack)
 - [antigravity] Coordination layer added: sessions, context notes, dashboard. 16 MCP tools total (second-brain)
 - [antigravity] Second-brain MCP wired across all agents: opencode, Hermes, Claude Desktop, Clau (second-brain)
 
-## Knowledge (25 active)
+## Knowledge (26 active)
+- [active] Postgres port 5433 has schema v2 applied; connection pool max=10 [[20260827-bab441]]
 - [active] OmniRoute (v3.8.48, localhost:20128, data C:\Users\h0093\.omniroute) failures diagnosed 2026-08-18: (1) Hermes defaul... [[20260818-a730d9]]
 - [active] BB pilot 2026-08-09 (acronis.work): PLAN GATE validated — boilerplate→defensive reframe; beta-cloud clean; awaiting H... [[20260810-fcffa8]]
 - [active] OmniRoute unused-but-valuable features (2026-08-10 audit): combos+routing (14 strategies, empty), fallback chains (em... [[20260810-e555db]]
@@ -16,5 +18,4 @@
 - [active] TITAN FX prior-window pull data quirks: dukascopy_1m_ba_prior 2021-08→2025-07 (WF-v2 Step 5 OOS); bid/ask CONTRACT on... [[20260810-6b29e8]]
 - [active] TITAN pytest resolves titan from the installed WHEEL (site-packages), NOT src/ — sync .py changes to site-packages or... [[20260810-68f2e1]]
 - [active] OmniRoute gateway: dashboard password is default CHANGEME; auth via curl POST /api/auth/login (auth_token in Set-Cook... [[20260810-63919f]]
-- [active] Bug bounty/OSINT PLAN GATE (compulsory): before agent-driven recon on a new target run python ~/.hermes/scripts/bb_pl... [[20260810-41e25d]]
-- ... and 25 more (run brain_recall)
+- ... and 26 more (run brain_recall)
