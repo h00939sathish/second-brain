@@ -1,8 +1,7 @@
 {
-  "vault_version": 1,
+  "vault_version": 2,
   "sweep": {
     "expire_unreviewed_after_days": 120,
-    "expire_never_after_days": 365,
     "stale_after_days": 90
   },
   "recall": {
@@ -11,5 +10,11 @@
       "superseded",
       "disputed"
     ]
+  },
+  "session": {
+    "stale_after_hours": 24
+  },
+  "context": {
+    "default_limit": 20
   }
 }
