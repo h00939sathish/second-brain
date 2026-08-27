@@ -55,6 +55,13 @@ import uuid
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
+# Force UTF-8 on Windows console (existing claims contain Unicode arrows, em-dashes, etc.)
+if sys.stdout and hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 VAULT = Path(os.environ.get("SECOND_BRAIN_VAULT", r"D:\projects\second-brain"))
 META_DIR = "meta"
 CLAIMS_DIR = "claims"
