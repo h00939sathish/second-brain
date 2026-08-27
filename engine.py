@@ -602,8 +602,8 @@ def cmd_sessions(args, cfg):
         agent = fm.get("agent", "?")
         project = fm.get("project", "") or "unscoped"
         task = fm.get("task", "")
-        marker = "🟢" if status == "active" else "⚪" if status == "ended" else "🟡"
-        print(f"  {marker} [{status}] {agent} → {project}: {task} ({age})")
+        marker = "*" if status == "active" else "." if status == "ended" else "?"
+        print(f"  {marker} [{status}] {agent} -> {project}: {task} ({age})")
         print(f"      id: {s['id']}")
     return 0
 
@@ -674,18 +674,18 @@ def cmd_dashboard(args, cfg):
     claims = all_claims()
     active_claims = [c for c in claims if c["fm"].get("status", "active") == "active"]
 
-    print("╔══════════════════════════════════════╗")
-    print("║      SECOND BRAIN — DASHBOARD        ║")
-    print("╚══════════════════════════════════════╝")
+    print("=" * 42)
+    print("      SECOND BRAIN -- DASHBOARD")
+    print("=" * 42)
     print()
 
     # active sessions
-    print(f"▸ ACTIVE SESSIONS ({len(active)})")
+    print(f"> ACTIVE SESSIONS ({len(active)})")
     if active:
         for s in active:
             fm = s["fm"]
             age = time_ago(fm.get("started", ""))
-            print(f"  🟢 {fm.get('agent','?')} → {fm.get('project','') or 'unscoped'}: "
+            print(f"  [LIVE] {fm.get('agent','?')} -> {fm.get('project','') or 'unscoped'}: "
                   f"{fm.get('task','')} ({age})")
     else:
         print("  (none)")
@@ -693,16 +693,16 @@ def cmd_dashboard(args, cfg):
 
     # recently ended
     if recent_ended:
-        print(f"▸ RECENTLY ENDED ({len(recent_ended)})")
+        print(f"> RECENTLY ENDED ({len(recent_ended)})")
         for s in reversed(recent_ended):
             fm = s["fm"]
             age = time_ago(fm.get("ended", fm.get("updated", "")))
-            print(f"  ⚪ {fm.get('agent','?')} → {fm.get('project','') or 'unscoped'}: "
+            print(f"  [done] {fm.get('agent','?')} -> {fm.get('project','') or 'unscoped'}: "
                   f"{fm.get('task','')} (ended {age})")
         print()
 
     # recent context
-    print(f"▸ RECENT CONTEXT ({len(recent_notes)})")
+    print(f"> RECENT CONTEXT ({len(recent_notes)})")
     if recent_notes:
         for n in recent_notes[:5]:
             fm = n["fm"]
@@ -716,7 +716,7 @@ def cmd_dashboard(args, cfg):
     # vault health
     l0_path = VAULT / META_DIR / L0_NAME
     l0_size = l0_path.stat().st_size if l0_path.exists() else 0
-    print(f"▸ VAULT: {len(active_claims)} active claims, "
+    print(f"> VAULT: {len(active_claims)} active claims, "
           f"L0={l0_size}B/{L0_BUDGET}B")
     print()
     return 0
@@ -789,7 +789,7 @@ def cmd_sweep(args, cfg):
             proj = fm.get("project", "") or "unscoped"
             task = fm.get("task", "")[:60]
             age = time_ago(fm.get("started", ""))
-            l0_lines.append(f"- {agent} → {proj}: {task} ({age})")
+            l0_lines.append(f"- {agent} -> {proj}: {task} ({age})")
         l0_lines.append("")
 
     # Section 2: Recent context (newest first, up to 5)
