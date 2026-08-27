@@ -1,8 +1,9 @@
-# Brain (auto-generated 2026-08-27T07:25:42Z)
+# Brain (auto-generated 2026-08-27T07:36:00Z)
 # Call brain_session_start on session begin. brain_recall for knowledge.
 
 ## Context
 - [antigravity] Coordination layer added: sessions, context notes, dashboard. 16 MCP tools total (second-brain)
+- [antigravity] Second-brain MCP wired across all agents: opencode, Hermes, Claude Desktop, Clau (second-brain)
 
 ## Knowledge (25 active)
 - [active] OmniRoute (v3.8.48, localhost:20128, data C:\Users\h0093\.omniroute) failures diagnosed 2026-08-18: (1) Hermes defaul... [[20260818-a730d9]]
@@ -16,5 +17,4 @@
 - [active] TITAN pytest resolves titan from the installed WHEEL (site-packages), NOT src/ — sync .py changes to site-packages or... [[20260810-68f2e1]]
 - [active] OmniRoute gateway: dashboard password is default CHANGEME; auth via curl POST /api/auth/login (auth_token in Set-Cook... [[20260810-63919f]]
 - [active] Bug bounty/OSINT PLAN GATE (compulsory): before agent-driven recon on a new target run python ~/.hermes/scripts/bb_pl... [[20260810-41e25d]]
-- [active] Telegram delivery targets: horoscope→-1004366479436; trade reports (08:00/EOD 01:35 IST)→-1004335891979. Hermes CLI u... [[20260810-34764d]]
 - ... and 25 more (run brain_recall)
