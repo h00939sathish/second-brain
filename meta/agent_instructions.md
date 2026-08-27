@@ -1,60 +1,38 @@
-# Agent Integration Instructions
+# Agent Integration Instructions (v3)
 
 > Paste or inject this block into each agent's system prompt / instructions
-> so they know how to use the shared brain. The L0 pointer set
-> (`meta/l0_pointers.md`) auto-includes a condensed version of these
-> instructions after each `sweep`.
+> so they follow the shared coordination protocol.
 
-## Second Brain (shared multi-agent memory)
+## Second Brain (Multi-Agent Coordination & Shared Memory)
 
-You have access to a shared brain (MCP server: `second-brain`) that all
-coding agents use. It has two layers:
+You have access to the shared brain (MCP server: `second-brain`). All coding agents
+(opencode, Hermes, Claude, Codex, Antigravity) use this central hub to coordinate.
 
-**Knowledge** — long-term facts (claims with truth lifecycle):
-- `brain_recall` — search stored facts/preferences/rules
-- `brain_claim` — record a new fact (auto-committed to git)
-- `brain_supersede` / `brain_dispute` — update truth state
+### Protocol:
 
-**Coordination** — multi-agent awareness:
-- `brain_dashboard` — full status: who's doing what, recent context, vault health
-- `brain_session_start` — register your session (agent name, project, task)
-- `brain_session_update` — log progress milestones
-- `brain_session_end` — close session with summary of what you did
-- `brain_sessions` — see other agents' active/recent sessions
-- `brain_post` — share a discovery, decision, or blocker
-- `brain_read` — read context notes from other agents
+1. **At Session Start**:
+   - Call `brain_dashboard()` for full situational awareness (active sessions, file locks, recent handoffs).
+   - If planning to edit files, check availability: `brain_check_files(files="src/app.py,tests/test_app.py")`.
+   - Register your session and reserve files:
+     `brain_session_start(agent="<name>", project="<proj>", task="<task>", files="path1,path2", lease_mins=30)`
 
-### Session protocol
+2. **During Work**:
+   - `brain_recall(query="...")` — BM25 search for permanent facts, rules, and architecture notes.
+   - `brain_read(query="...")` — read shared context notes & blockers posted by other agents.
+   - `brain_post(text="...", project="...", tags="...", agent="<name>")` — share discoveries or blockers (auto-expires in 7 days).
+   - `brain_promote(context_id="...")` — promote a valuable discovery note into a permanent claim.
+   - `brain_reserve(session_id="...", files="...", lease_mins=30)` — reserve additional files.
+   - `brain_session_update(session_id="...", progress="...")` — log key checkpoints.
 
-At the **start** of every conversation:
-1. Call `brain_dashboard` for situational awareness
-2. Call `brain_session_start(agent="<your-name>", project="<project>", task="<what>")`
-3. Save the returned session ID
+3. **At Session End**:
+   - Call `brain_session_end(session_id, summary="...", target_agent="...", next_steps="...", modified_files="...", test_status="...")`
+   - This records structured handoff metadata and **immediately releases all file locks**.
 
-**During** work:
-- `brain_recall` for facts/knowledge before making assumptions
-- `brain_read` for recent context from other agents
-- `brain_post` to share important discoveries or decisions
-- `brain_session_update` at significant milestones
+### Tool Quick Reference (19 Tools)
 
-At the **end** of your conversation:
-- `brain_session_end(session_id, summary="what you accomplished")`
-
-### What goes where
-
-| Use case | Tool |
+| Category | Tools |
 |---|---|
-| Permanent fact, preference, rule | `brain_claim` |
-| Session-scoped discovery, decision | `brain_post` |
-| What am I working on right now | `brain_session_start` / `brain_session_update` |
-| What did I accomplish | `brain_session_end` |
-
-### Agent names (for --agent)
-
-Use these consistent names across all sessions:
-- `hermes` — Hermes agent
-- `opencode` — opencode sessions
-- `claude` — Claude Code
-- `codex` — OpenAI Codex CLI
-- `antigravity` — Google Antigravity (this IDE)
-- (add more as needed)
+| **Coordination** | `brain_dashboard`, `brain_session_start`, `brain_session_update`, `brain_session_end`, `brain_sessions` |
+| **Concurrency & Locks** | `brain_reserve`, `brain_check_files` |
+| **Context & Scratchpad** | `brain_post`, `brain_read`, `brain_promote` |
+| **Knowledge & Claims** | `brain_recall`, `brain_claim`, `brain_supersede`, `brain_dispute`, `brain_verify`, `brain_related`, `brain_status`, `brain_sweep` |

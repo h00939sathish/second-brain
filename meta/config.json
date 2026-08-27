@@ -1,5 +1,5 @@
 {
-  "vault_version": 2,
+  "vault_version": 3,
   "sweep": {
     "expire_unreviewed_after_days": 120,
     "stale_after_days": 90
@@ -12,9 +12,15 @@
     ]
   },
   "session": {
-    "stale_after_hours": 24
+    "stale_after_hours": 24,
+    "default_lease_mins": 30
   },
   "context": {
-    "default_limit": 20
+    "default_limit": 20,
+    "ttl_days": 7
+  },
+  "search": {
+    "engine": "sqlite_fts5",
+    "algorithm": "bm25"
   }
 }

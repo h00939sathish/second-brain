@@ -1,6 +1,8 @@
 # state & lock files
 .lock
 *.tmp
+# Search index SQLite database
+meta/search_index.db
 # L2 transcripts are owned by Hermes session_search - keep them out of git
 sessions/*.json
 # large blobs
