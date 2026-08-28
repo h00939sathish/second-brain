@@ -944,6 +944,101 @@ def cmd_auto_cycle(args, cfg):
     return 0
 
 
+def cmd_daemon(args, cfg):
+    """Continuous background worker that polls the Kanban board and auto-chains task execution."""
+    interval = getattr(args, "interval", 15) or 15
+    project = getattr(args, "project", "") or ""
+    max_retries = getattr(args, "max_retries", 3) or 3
+
+    print("=" * 55, flush=True)
+    print("        SECOND BRAIN -- AUTONOMOUS DAEMON (v4.4)", flush=True)
+    print(f"  Polling: every {interval}s | Project Scope: {project or 'ALL'}", flush=True)
+    print("=" * 55, flush=True)
+
+    task_attempts = {}
+
+    try:
+        while True:
+            target_task = None
+            target_agent = None
+
+            with lock():
+                tasks = all_tasks()
+                if project:
+                    tasks = [t for t in tasks if t["fm"].get("project") == project]
+
+                # Priority 1: Tasks in [review] -> Antigravity
+                in_review = [t for t in tasks if t["fm"].get("status") == "review"]
+                running = [t for t in tasks if t["fm"].get("status") == "running"]
+                planning = [t for t in tasks if t["fm"].get("status") == "planning"]
+
+                if in_review:
+                    target_task = in_review[0]
+                    target_agent = "antigravity"
+                elif running:
+                    target_task = running[0]
+                    target_agent = target_task["fm"].get("agent") or "opencode"
+                elif planning:
+                    target_task = planning[0]
+                    target_agent = "codex"
+
+                if target_task:
+                    tid = target_task["id"]
+                    curr_status = target_task["fm"].get("status", "backlog")
+
+                    t_info = task_attempts.get(tid, {"attempts": 0, "last_status": curr_status})
+                    if t_info["last_status"] == curr_status:
+                        t_info["attempts"] += 1
+                    else:
+                        t_info["attempts"] = 1
+                        t_info["last_status"] = curr_status
+                    task_attempts[tid] = t_info
+
+                    if t_info["attempts"] > max_retries:
+                        print(f"[{now()[11:19]}] [CIRCUIT BREAKER] Task {tid} stuck in [{curr_status}] ({max_retries} attempts). Pausing.", flush=True)
+                        target_task = None
+
+            if target_task:
+                tid = target_task["id"]
+                title = target_task["fm"].get("title", "")
+                print(f"[{now()[11:19]}] [DISPATCH] [{tid}] ({title}) -> {target_agent.upper()} (Attempt {t_info['attempts']}/{max_retries})", flush=True)
+
+                log_dir = VAULT / LOGS_DIR
+                log_dir.mkdir(parents=True, exist_ok=True)
+                prompt_file = log_dir / f"{tid}.prompt.txt"
+                log_file = log_dir / f"{tid}.log"
+                prompt = build_agent_prompt(target_task)
+                prompt_file.write_text(prompt, encoding="utf-8")
+
+                project_name = target_task["fm"].get("project", "")
+                cwd = VAULT
+                if "TITAN" in project_name.upper():
+                    titan_path = Path(r"D:\projects\Project TITAN")
+                    if titan_path.exists():
+                        cwd = titan_path
+
+                cli_map = {
+                    "codex": f"Get-Content -Raw '{prompt_file}' | codex.cmd exec -",
+                    "codex-cli": f"Get-Content -Raw '{prompt_file}' | codex.cmd exec -",
+                    "claude": f"Get-Content -Raw '{prompt_file}' | claude.exe -p",
+                    "claude-code": f"Get-Content -Raw '{prompt_file}' | claude.exe -p",
+                    "opencode": f"Get-Content -Raw '{prompt_file}' | opencode.cmd run",
+                    "antigravity": f"Get-Content -Raw '{prompt_file}' | agy.exe exec",
+                    "agy": f"Get-Content -Raw '{prompt_file}' | agy.exe exec",
+                }
+                pwsh_body = cli_map.get(target_agent, f"Get-Content -Raw '{prompt_file}' | opencode.cmd run")
+                cmd = ["pwsh.exe", "-NoProfile", "-Command", f"cd '{cwd}'; {pwsh_body}"]
+
+                with open(log_file, "a", encoding="utf-8") as lf:
+                    res = subprocess.run(cmd, cwd=cwd, stdout=lf, stderr=subprocess.STDOUT)
+                print(f"[{now()[11:19]}] [FINISHED] {target_agent.upper()} turn complete (exit {res.returncode}). Log: {log_file}", flush=True)
+
+            time.sleep(interval)
+    except KeyboardInterrupt:
+        print("\n[DAEMON] Stopped gracefully.", flush=True)
+        return 0
+
+
 # ================ KNOWLEDGE & CLAIMS COMMANDS ================
 
 def cmd_init(args, cfg=None):
@@ -1871,6 +1966,11 @@ def main():
     p_auto.add_argument("--project", default="")
     p_auto.add_argument("--tab", action="store_true", help="Launch in a new Windows Terminal tab")
 
+    p_daemon = sub.add_parser("daemon")
+    p_daemon.add_argument("--interval", type=int, default=15, help="Polling interval in seconds")
+    p_daemon.add_argument("--project", default="", help="Scope daemon to a specific project")
+    p_daemon.add_argument("--max-retries", type=int, default=3, help="Max attempts before circuit breaker")
+
     # -- upstream specs commands (Traycer) --
     p_spec_c = sub.add_parser("spec-create")
     p_spec_c.add_argument("--title", required=True)
@@ -1963,6 +2063,10 @@ def main():
     if args.cmd != "init" and not (VAULT / META_DIR).exists():
         print(f"vault not initialised: {VAULT} (run: python engine.py init)")
         return 1
+
+    if args.cmd == "daemon":
+        cfg = load_config()
+        return cmd_daemon(args, cfg)
 
     with lock():
         cfg = load_config()
