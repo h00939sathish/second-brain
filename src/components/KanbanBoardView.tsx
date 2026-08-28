@@ -6,6 +6,7 @@ import {
   ContextStreamMessage,
   KanbanStatus,
 } from '../types';
+import { useTrackComponentRender } from '../hooks/usePerformanceProfiler';
 
 interface KanbanBoardViewProps {
   tasks: KanbanTask[];
@@ -26,6 +27,7 @@ export const KanbanBoardView: React.FC<KanbanBoardViewProps> = ({
   onOpenTaskModal,
   onAddTask,
 }) => {
+  useTrackComponentRender('KanbanBoardView');
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
 
   const columns: { id: KanbanStatus; label: string }[] = [

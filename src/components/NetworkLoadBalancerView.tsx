@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { QueueTask, DaemonLoadInfo } from '../types';
+import { useTrackComponentRender } from '../hooks/usePerformanceProfiler';
 
 interface NetworkLoadBalancerViewProps {
   daemonLoads: DaemonLoadInfo[];
@@ -13,6 +14,7 @@ export const NetworkLoadBalancerView: React.FC<NetworkLoadBalancerViewProps> = (
   queueTasks,
   onOpenDeployModal,
 }) => {
+  useTrackComponentRender('NetworkLoadBalancerView');
   const [tasksList, setTasksList] = useState<QueueTask[]>(queueTasks);
   const [activeTab, setActiveTab] = useState<'overview' | 'regions'>('overview');
 

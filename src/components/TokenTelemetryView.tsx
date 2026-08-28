@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { TimeRange, InferenceRecord, ModelConsumptionPoint } from '../types';
+import { PerformanceProfilerPanel } from './PerformanceProfilerPanel';
+import { useTrackComponentRender } from '../hooks/usePerformanceProfiler';
 
 interface TokenTelemetryViewProps {
   consumptionData: ModelConsumptionPoint[];
@@ -12,6 +14,7 @@ export const TokenTelemetryView: React.FC<TokenTelemetryViewProps> = ({
   inferences,
   onSelectInference,
 }) => {
+  useTrackComponentRender('TokenTelemetryView');
   const [timeRange, setTimeRange] = useState<TimeRange>('24H');
   const [hoveredBar, setHoveredBar] = useState<number | null>(null);
   const [tableSearch, setTableSearch] = useState('');
@@ -343,6 +346,9 @@ export const TokenTelemetryView: React.FC<TokenTelemetryViewProps> = ({
           </table>
         </div>
       </div>
+
+      {/* Real-time Performance Profiler Panel (Performance API) */}
+      <PerformanceProfilerPanel />
     </div>
   );
 };

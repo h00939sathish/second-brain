@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { LogEntry } from '../types';
+import { useTrackComponentRender } from '../hooks/usePerformanceProfiler';
 
 interface LiveTerminalLogsViewProps {
   logs: LogEntry[];
@@ -12,6 +13,7 @@ export const LiveTerminalLogsView: React.FC<LiveTerminalLogsViewProps> = ({
   onAddLog,
   onClearLogs,
 }) => {
+  useTrackComponentRender('LiveTerminalLogsView');
   const [autoScroll, setAutoScroll] = useState(true);
   const [filterLevel, setFilterLevel] = useState<string>('ALL');
   const [filterStream, setFilterStream] = useState<string>('ALL');

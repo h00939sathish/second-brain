@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTrackComponentRender } from '../hooks/usePerformanceProfiler';
 
 const DEFAULT_SPEC_CONTENT = `# Unified Component Architecture
 **Spec ID:** \`spec-20260828-b4ef8d\`  
@@ -29,6 +30,7 @@ export interface AutonomousTask {
 `;
 
 export const SpecsEditorView: React.FC = () => {
+  useTrackComponentRender('SpecsEditorView');
   const [content, setContent] = useState(DEFAULT_SPEC_CONTENT);
   const [isPreview, setIsPreview] = useState(false);
   const [isSaved, setIsSaved] = useState(true);

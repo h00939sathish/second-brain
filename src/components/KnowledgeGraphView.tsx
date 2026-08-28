@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { GraphNode } from '../types';
+import { useTrackComponentRender } from '../hooks/usePerformanceProfiler';
 
 interface KnowledgeGraphViewProps {
   nodes: GraphNode[];
@@ -10,6 +11,7 @@ export const KnowledgeGraphView: React.FC<KnowledgeGraphViewProps> = ({
   nodes,
   onSelectNode,
 }) => {
+  useTrackComponentRender('KnowledgeGraphView');
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>('spec-01');
   const [zoomLevel, setZoomLevel] = useState<number>(1);
   const [filterType, setFilterType] = useState<string>('ALL');
