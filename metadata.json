@@ -1,0 +1,6 @@
+{
+  "name": "Second Brain Mission Control",
+  "description": "A developer orchestration and observability mission control dashboard with token telemetry, real-time daemon tracking, interactive kanban, terminal logs, knowledge graph, and spec editor.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

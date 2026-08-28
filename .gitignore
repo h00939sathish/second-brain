@@ -1,9 +1,21 @@
-# state & lock files
+# Backend state & lock files
 .lock
 *.tmp
-# Search index SQLite database
-meta/search_index.db
-# L2 transcripts are owned by Hermes session_search - keep them out of git
-sessions/*.json
-# large blobs
 *.log
+meta/search_index.db
+sessions/*.json
+__pycache__/
+*.pyc
+.venv/
+mcp/.venv/
+
+# Frontend dependencies & build artifacts
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+.env
+.env.local
+.env.production
+!.env.example

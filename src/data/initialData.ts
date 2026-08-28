@@ -1,0 +1,323 @@
+import {
+  InferenceRecord,
+  ModelConsumptionPoint,
+  KanbanTask,
+  FileLease,
+  AgentHandoff,
+  ContextStreamMessage,
+  LogEntry,
+  GraphNode,
+  QueueTask,
+  DaemonLoadInfo,
+} from '../types';
+
+export const ASSETS = {
+  // Brand Brain icon / logos
+  logoAvatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuB7mXkP1S02rHDZIJCmKHZyAmDKn5xoaHDHBbCJ7YxySCdm2LkYJBdnNOn8lecQF2U_mLuZYPf-ox13qEPCdDQcr7kZGJKxrbc6c0Zo5K2yg4hHBoeIFRpwWzZyXz__rO_Aqzy2GavlWA46fmYSj1rUNBarEr_PuJ8zmE53XvcaMqkGwVsPnxwmzRCKylFrbmUztK4GDuMzTyRMfFlrSGVk4c-9sOdKuyEmP9ucRLgItkUUVuHwBDh-',
+  userAvatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAqNJ0rwZpgCbnUzsgji2X91HTqG4H_u1BwMmSs561EYFrHex1ym7LpqcZ3wEpxU0TT_JNgn03HvO8ZGQf3UNBbQVfGIFPkg6RW9zpqGku5b8-RziJGu4R0LCpgRsXug4tTigmYdm1NimbV-0UfxZKZnUNQzjeFstF5EGgw2Pqqf88K7fZTapxQwrzH1esQADuYs3ImjLSuaOo1gSsTpkPzX9Z0Sov5shgfbnBzP_DJjyoidHSkLJUZ',
+  operatorAvatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBxtE5sLGTZZdAwrR9j7CPJvU9m1q0K0INHxMX5d2_FSP9vJF-HZoEYeiFhl_ydTY8eimu19h7vAvVKC0VW7XNxFlZZXZ7FhxgFTTOgRaEHoJGV6w7p_xU835XGuI9iX8RGxyg-u-3Or_onusMRJLGMSyoDToPqKY0pP4wh-vingRo33sB_M1obapNk9XxKNR1fYCXc_qDS-bm9dW7JhNEhqKl2Q6quW92kK_j0J443sfAgBOQXlW4o',
+  engineAvatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDxZLIGhWyUUE6IG3QzpzYG8JFBxPCHyx8iQlKfU3kVYApyB4VZgNKqInUFxGWQVwCY_YFhd1BKcNYl7ihhCx41eoH3fT4smIuH23mkYsW_HlGB3joGV5KwMj6JRa6M78kNV5-Yx69KSoOQDuw4g-Sr7g5BmFpX7gnoUjhUh32aALA9yhE56PG470YowYqDX_-4gW-GD8rBYqpGXQi7-ZzP5soEpBplK4G2LIU6qslPox6yH4EWKDfo',
+  badgeAvatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuA5mhAlAicTWGw9LAH8wEGODOtygnPKwhg_a7X95Djp4XpRtPG86jOGoYOvDtfiLsHlSP_KVCkR_w8yUwGkk7k7BtG2J7UPxFZ3O1OmcCpzj8aJSslF0yj558cVEZ7W-6dGojfoQGgyUKUMoT-TAaTqgmbxUFnU0BfPM52-ssAprInBHB-OlQf6TiC2RSzFKYhMUlVfHDD4uDGLyOORz5YQWg1vevPZ1BWHrP7MCFgjF4gZJOmiFI7N',
+  circuitCore: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAbqmyOWchjbQN9mLnWGJxOTGgMdyl1DimPM3qPjUD3Hf6Ea6C1tJmEoLMRWl4PeUleOJowwjVS4nS3jtCVl4cuRHcNdF5auAoN8wM2_Q0VydDTlSzKm8QjctufRyzBlejx9G46nH5sJAiBWyshQf_LTFsROPfVsELSTCVvHON34S1Y7HQ01bl9QHjU0ssPVnysr4uYkASZ9RkKKEOUFAdscVLRmhhhTYo8S1-DRETd1VsVBS4tJoLV'
+};
+
+export const INITIAL_CONSUMPTION_DATA: ModelConsumptionPoint[] = [
+  { timeLabel: '0:00', gpt5: 40, gemini: 20, claude: 10 },
+  { timeLabel: '2:00', gpt5: 50, gemini: 15, claude: 25 },
+  { timeLabel: '4:00', gpt5: 30, gemini: 40, claude: 10 },
+  { timeLabel: '6:00', gpt5: 60, gemini: 10, claude: 20 },
+  { timeLabel: '8:00', gpt5: 70, gemini: 5, claude: 15 },
+  { timeLabel: '10:00', gpt5: 45, gemini: 25, claude: 20 },
+  { timeLabel: '12:00', gpt5: 55, gemini: 20, claude: 15 },
+  { timeLabel: '14:00', gpt5: 80, gemini: 10, claude: 5 },
+  { timeLabel: '16:00', gpt5: 65, gemini: 15, claude: 15 },
+  { timeLabel: '18:00', gpt5: 40, gemini: 30, claude: 20 },
+  { timeLabel: '20:00', gpt5: 35, gemini: 25, claude: 30 },
+  { timeLabel: '22:00', gpt5: 50, gemini: 20, claude: 15 },
+];
+
+export const INITIAL_INFERENCES: InferenceRecord[] = [
+  {
+    id: 'req_8a7b9c',
+    modelRoute: 'Codex 5.6',
+    modelColor: 'primary',
+    tokensIn: 8402,
+    tokensOut: 450,
+    latency: '850ms',
+    latencyMs: 850,
+    resourceImpact: '+4% CPU / +120MB',
+    cost: 0.042,
+    timestamp: 'Just now',
+    status: 'ok',
+  },
+  {
+    id: 'req_2f1e4d',
+    modelRoute: 'Gemini 3.7',
+    modelColor: 'secondary',
+    tokensIn: 12050,
+    tokensOut: 1200,
+    latency: '1.2s',
+    latencyMs: 1200,
+    resourceImpact: '+8% CPU / +240MB',
+    cost: 0.115,
+    timestamp: '2m ago',
+    status: 'ok',
+  },
+  {
+    id: 'req_9c8b7a',
+    modelRoute: 'Claude 3.7',
+    modelColor: 'tertiary',
+    tokensIn: 450,
+    tokensOut: 85,
+    latency: '210ms',
+    latencyMs: 210,
+    resourceImpact: '+2% CPU / +45MB',
+    cost: 0.003,
+    timestamp: '5m ago',
+    status: 'ok',
+  },
+  {
+    id: 'req_5d6e7f',
+    modelRoute: 'Codex 5.6',
+    modelColor: 'primary',
+    tokensIn: 32100,
+    tokensOut: 4500,
+    latency: '4.5s',
+    latencyMs: 4500,
+    resourceImpact: '+15% CPU / +850MB',
+    cost: 0.450,
+    timestamp: '11m ago',
+    status: 'warning',
+  },
+  {
+    id: 'req_1a2b3c',
+    modelRoute: 'Local LLaMA',
+    modelColor: 'outline',
+    tokensIn: 1200,
+    tokensOut: 300,
+    latency: '450ms',
+    latencyMs: 450,
+    resourceImpact: '+1% CPU / +12MB',
+    cost: 0.000,
+    timestamp: '18m ago',
+    status: 'ok',
+  },
+];
+
+export const INITIAL_KANBAN_TASKS: KanbanTask[] = [
+  {
+    id: 't-20260828-676466',
+    title: 'Design component architecture for unified UI kit.',
+    status: 'planning',
+    assignee: { code: 'op', name: 'opencode', color: '#10b981' },
+    uptime: '14h 22m',
+    hasWarning: true,
+    warningMessage: 'Approaching lease expiration limit',
+    tags: ['TITAN'],
+    specLink: 'spec-02',
+    description: 'Establish consistent styling tokens, micro-border radiuses, and agent color palettes across all front-end clients.',
+    tokenCost: 0.084,
+    createdAt: '2026-08-28 02:10 UTC',
+  },
+  {
+    id: 't-20260828-676465',
+    title: 'Implement real-time model syncing for src/models.rs',
+    status: 'running',
+    assignee: { code: 'Cx', name: 'Codex', color: '#22d3ee' },
+    uptime: '4h 45m',
+    tags: ['TITAN'],
+    specLink: 'spec-01',
+    progressPercent: 45,
+    description: 'Synchronize vector embedding state cache and active thread memory partitions directly with the engine daemon.',
+    tokenCost: 0.180,
+    createdAt: '2026-08-28 06:30 UTC',
+  },
+  {
+    id: 't-20260827-001',
+    title: 'Setup postgres local db container',
+    status: 'done',
+    assignee: { code: 'Cx', name: 'Codex', color: '#22d3ee' },
+    tags: ['INFRA'],
+    tokenCost: 0.024,
+    createdAt: '2026-08-27 10:15 UTC',
+  },
+  {
+    id: 't-20260827-002',
+    title: 'Initialize React boilerplate',
+    status: 'done',
+    assignee: { code: 'op', name: 'opencode', color: '#10b981' },
+    tags: ['FE'],
+    tokenCost: 0.015,
+    createdAt: '2026-08-27 12:40 UTC',
+  },
+  {
+    id: 't-20260827-003',
+    title: 'Configure Tailwind theme',
+    status: 'done',
+    assignee: { code: 'Cx', name: 'Codex', color: '#22d3ee' },
+    tags: ['FE'],
+    tokenCost: 0.019,
+    createdAt: '2026-08-27 14:00 UTC',
+  },
+];
+
+export const INITIAL_FILE_LEASES: FileLease[] = [
+  {
+    id: 'lease-1',
+    file: 'src/models.rs',
+    holder: 'Codex',
+    holderCode: 'Cx',
+    holderColor: '#22d3ee',
+    duration: '18m',
+  },
+  {
+    id: 'lease-2',
+    file: 'src/orchestrator/router.go',
+    holder: 'Claude-Sync',
+    holderCode: 'Cl',
+    holderColor: '#ec6a06',
+    duration: '4m',
+  },
+];
+
+export const INITIAL_HANDOFFS: AgentHandoff[] = [
+  {
+    id: 'h-1',
+    from: 'Codex',
+    fromCode: 'Cx',
+    to: 'opencode',
+    toCode: 'op',
+    timeAgo: '12m ago',
+  },
+  {
+    id: 'h-2',
+    from: 'Claude',
+    fromCode: 'Cl',
+    to: 'Codex',
+    toCode: 'Cx',
+    timeAgo: '45m ago',
+  },
+];
+
+export const INITIAL_CONTEXT_MESSAGES: ContextStreamMessage[] = [
+  {
+    id: 'c-1',
+    source: '[Codex]',
+    color: '#22d3ee',
+    text: 'DB Schema locked. Proceeding with migration checks.',
+    timestamp: '14:02',
+  },
+  {
+    id: 'c-2',
+    source: '[Sys]',
+    color: '#4cd7f6',
+    text: 'Token burn rate nominal.',
+    timestamp: '14:03',
+  },
+  {
+    id: 'c-3',
+    source: '[opencode]',
+    color: '#10b981',
+    text: 'Waiting on structural definitions.',
+    timestamp: '14:04',
+  },
+  {
+    id: 'c-4',
+    source: '[Claude]',
+    color: '#ec6a06',
+    text: 'Completed AST inspection for component interfaces.',
+    timestamp: '14:05',
+  },
+];
+
+export const INITIAL_LOGS: LogEntry[] = [
+  {
+    id: 'log-1',
+    timestamp: '14:02:45.102',
+    level: 'INFO',
+    tag: '[Sys-Mon]',
+    sourceColor: '#22d3ee',
+    message: 'Initializing network listener on 0.0.0.0:8080...',
+  },
+  {
+    id: 'log-2',
+    timestamp: '14:02:45.340',
+    level: 'OK',
+    tag: '[Sys-Mon]',
+    sourceColor: '#22d3ee',
+    message: 'Listener active. Awaiting incoming daemons.',
+  },
+  {
+    id: 'log-3',
+    timestamp: '14:03:12.005',
+    level: 'INFO',
+    tag: '[Codex-A]',
+    sourceColor: '#22d3ee',
+    message: 'Spawning worker thread 4492 for task segment 0x8AF...',
+  },
+  {
+    id: 'log-4',
+    timestamp: '14:03:14.221',
+    level: 'WARN',
+    tag: '[Codex-A]',
+    sourceColor: '#22d3ee',
+    message: 'Memory pressure detected during model load. Allocating swap space. (Current: 8.4GB / Limit: 10GB)',
+  },
+  {
+    id: 'log-5',
+    timestamp: '14:03:15.890',
+    level: 'INFO',
+    tag: '[Claude-S]',
+    sourceColor: '#ec6a06',
+    message: 'Sync payload received. Parsing JSON manifest.',
+    jsonPayload: {
+      manifest_id: 'm_9934a',
+      vectors: 1042,
+      checksum: 'sha256:d8a0c2...',
+      status: 'verified',
+    },
+  },
+  {
+    id: 'log-6',
+    timestamp: '14:03:18.404',
+    level: 'ERR',
+    tag: '[Codex-A]',
+    sourceColor: '#22d3ee',
+    message: "Connection timeout fetching dependency 'lib-tensor-core-v4'. Retry 1/3...",
+    errorCode: 'CODE: E_TIMEOUT',
+  },
+  {
+    id: 'log-7',
+    timestamp: '14:03:20.001',
+    level: 'SYS',
+    tag: '[Kernel]',
+    sourceColor: '#4cd7f6',
+    message: 'Process PID 102 (Legacy-Worker) exited with code 0.',
+  },
+];
+
+export const INITIAL_GRAPH_NODES: GraphNode[] = [
+  { id: 'spec-01', label: 'SPEC-01: Engine Sync', type: 'spec', x: 220, y: 180, status: 'in_progress', connections: ['task-01', 'claim-01'] },
+  { id: 'spec-02', label: 'SPEC-02: Unified UI Kit', type: 'spec', x: 480, y: 140, status: 'in_progress', connections: ['task-02', 'claim-02'] },
+  { id: 'spec-03', label: 'SPEC-03: Vault Encryption', type: 'spec', x: 350, y: 380, status: 'complete', connections: ['task-03', 'claim-03'] },
+  { id: 'task-01', label: 'TASK: Sync models.rs', type: 'task', x: 140, y: 310, status: 'in_progress', connections: ['spec-01'] },
+  { id: 'task-02', label: 'TASK: Component Tokens', type: 'task', x: 620, y: 260, status: 'in_progress', connections: ['spec-02'] },
+  { id: 'task-03', label: 'TASK: Postgres Setup', type: 'task', x: 280, y: 490, status: 'complete', connections: ['spec-03'] },
+  { id: 'claim-01', label: 'CLAIM: Real-Time Cache', type: 'claim', x: 360, y: 240, status: 'in_progress', connections: ['spec-01', 'spec-02'] },
+  { id: 'claim-02', label: 'CLAIM: Zero-Leak Tokens', type: 'claim', x: 580, y: 410, status: 'in_progress', connections: ['spec-02'] },
+  { id: 'claim-03', label: 'CLAIM: RBAC Encryption', type: 'claim', x: 180, y: 460, status: 'complete', connections: ['spec-03'] },
+];
+
+export const INITIAL_QUEUE_TASKS: QueueTask[] = [
+  { id: '#REQ-8091', priority: 'CRITICAL', targetDaemon: 'Antigravity', daemonColor: '#22d3ee', status: 'Processing', estWait: '-' },
+  { id: '#REQ-8092', priority: 'HIGH', targetDaemon: 'Claude', daemonColor: '#ec6a06', status: 'Queued', estWait: '1.2s' },
+  { id: '#REQ-8093', priority: 'NORMAL', targetDaemon: 'Codex', daemonColor: '#d0bcff', status: 'Processing', estWait: '-' },
+  { id: '#REQ-8094', priority: 'LOW', targetDaemon: 'opencode', daemonColor: '#4ade80', status: 'Queued', estWait: '4.5s' },
+];
+
+export const INITIAL_DAEMON_LOADS: DaemonLoadInfo[] = [
+  { name: 'Antigravity', color: '#22d3ee', loadPercent: 85, activeThreads: 4, memoryUsage: '3.4 GB' },
+  { name: 'Codex', color: '#d0bcff', loadPercent: 42, activeThreads: 2, memoryUsage: '1.8 GB' },
+  { name: 'Claude', color: '#ec6a06', loadPercent: 92, activeThreads: 8, memoryUsage: '6.2 GB' },
+  { name: 'opencode', color: '#4ade80', loadPercent: 15, activeThreads: 1, memoryUsage: '780 MB' },
+];
