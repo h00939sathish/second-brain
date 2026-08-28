@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-second_brain.py - Multi-agent coordination hub + tiered memory engine.
+second_brain.py - Multi-agent coordination hub + tiered memory engine (v4).
 
 Tiered memory:
   L0 = compact pointers ALWAYS injected into agent sessions (~2.2KB budget)
-  L1 = this vault: git-backed markdown (claims, sessions, context notes)
+  L1 = this vault: git-backed markdown (claims, specs, tasks, sessions, context)
   L2 = raw session transcripts (opaque, never read/written here)
 
-Coordination layer:
-  Sessions = agent presence, branch/worktree tracking, file reservations & handoffs
-  Context  = shared discoveries/decisions/blockers (with TTL & promotion to claims)
-  Claims   = long-term knowledge with truth lifecycle & SQLite FTS5 (BM25) search
+Coordination & Execution Layer:
+  Specs    = Upstream architectural intent & phased decomposition (from Traycer)
+  Tasks    = Git-backed Kanban workflow (backlog->planning->running->review->done) (from agtx)
+  Sessions = Live agent presence, worktree tracking, file reservations & handoffs
+  Context  = Shared discoveries/decisions/blockers (with TTL & claim promotion)
+  Claims   = Permanent knowledge with truth lifecycle & SQLite FTS5 (BM25) search
 
 Deterministic operations only. Zero external dependencies (uses standard library).
 
@@ -28,7 +30,16 @@ Commands:
   verify <id>                 chain integrity check for one claim
   related <id>                graph traversal for one claim
 
-  # Coordination & Concurrency
+  # Upstream Specs & Phased Planning (Traycer pattern)
+  spec-create --project <p> --title <t> --spec <text> [--phases <p1,p2...>]
+  specs [--project <p>]
+
+  # Kanban Tasks (agtx pattern)
+  task-create --title <t> [--project <p>] [--spec <id>] [--agent <a>] [--phase <ph>] [--files <f1,f2>]
+  task-move <id> --status <backlog|planning|running|review|done> [--agent <a>] [--notes <text>]
+  tasks [--project <p>] [--status <s>] [--agent <a>]
+
+  # Sessions & Concurrency Control
   session-start --agent <name> [--project <p>] [--task <t>] [--branch <b>] [--worktree <w>] [--files <f1,f2>] [--lease <mins>]
   session-update <id> [--progress <text>] [--files <f1,f2>] [--extend-lease <mins>]
   session-end <id> [--summary <text>] [--target-agent <a>] [--next-steps <s>] [--modified-files <f1,f2>] [--test-status <t>]
@@ -37,7 +48,7 @@ Commands:
   check-files --files <f1,f2> [--project <p>]
   post <text> [--project <p>] [--tags <t>] [--agent <a>]
   read [--query <q>] [--project <p>] [--agent <a>] [--tag <t>] [--limit N]
-  dashboard                   full multi-agent status view
+  dashboard                   full multi-agent status view (Kanban + Sessions + Locks)
 """
 import argparse
 import json
@@ -61,6 +72,8 @@ if sys.stdout and hasattr(sys.stdout, "reconfigure"):
 VAULT = Path(os.environ.get("SECOND_BRAIN_VAULT", r"D:\projects\second-brain"))
 META_DIR = "meta"
 CLAIMS_DIR = "claims"
+SPECS_DIR = "specs"
+TASKS_DIR = "tasks"
 SESSIONS_DIR = "sessions"
 CONTEXT_DIR = "context"
 CONTEXT_ARCHIVE_DIR = "context/archive"
@@ -70,6 +83,8 @@ DB_NAME = "search_index.db"
 
 STATUSES = ("active", "superseded", "expired", "disputed")
 WITHHELD_STATUSES = ("expired", "superseded", "disputed")
+TASK_STATUSES = ("backlog", "planning", "running", "review", "done")
+
 L0_BUDGET = 2200  # bytes, matches Hermes memory tool limit
 SESSION_STALE_HOURS = 24  # mark active sessions stale after this
 DEFAULT_LEASE_MINS = 30  # default file lease duration in minutes
@@ -109,7 +124,7 @@ def load_config():
         except Exception:
             pass
     return {
-        "vault_version": 3,
+        "vault_version": 4,
         "sweep": {
             "expire_unreviewed_after_days": 120,
             "stale_after_days": 90,
@@ -122,6 +137,10 @@ def load_config():
         "context": {
             "default_limit": 20,
             "ttl_days": CONTEXT_TTL_DAYS,
+        },
+        "search": {
+            "engine": "sqlite_fts5",
+            "algorithm": "bm25",
         },
     }
 
@@ -238,6 +257,26 @@ def init_search_db():
             body
         );
     """)
+    cur.execute("""
+        CREATE VIRTUAL TABLE IF NOT EXISTS specs_fts USING fts5(
+            id UNINDEXED,
+            title,
+            project,
+            created UNINDEXED,
+            body
+        );
+    """)
+    cur.execute("""
+        CREATE VIRTUAL TABLE IF NOT EXISTS tasks_fts USING fts5(
+            id UNINDEXED,
+            title,
+            project,
+            spec_id UNINDEXED,
+            agent,
+            status UNINDEXED,
+            body
+        );
+    """)
     conn.commit()
     return conn
 
@@ -246,6 +285,7 @@ def reindex_all_search():
     """Syncs the SQLite FTS5 index from the markdown files (Markdown is source of truth)."""
     conn = init_search_db()
     cur = conn.cursor()
+
     cur.execute("DELETE FROM claims_fts;")
     for c in all_claims():
         fm = c["fm"]
@@ -254,6 +294,7 @@ def reindex_all_search():
             (c["id"], fm.get("claim", ""), fm.get("tags", ""), fm.get("source", ""),
              fm.get("status", "active"), fm.get("confidence", "0.9"), c["body"])
         )
+
     cur.execute("DELETE FROM context_fts;")
     for n in all_context_notes(include_archived=False):
         fm = n["fm"]
@@ -262,12 +303,30 @@ def reindex_all_search():
             (n["id"], fm.get("agent", ""), fm.get("project", ""), fm.get("tags", ""),
              fm.get("created", ""), n["body"])
         )
+
+    cur.execute("DELETE FROM specs_fts;")
+    for s in all_specs():
+        fm = s["fm"]
+        cur.execute(
+            "INSERT INTO specs_fts (id, title, project, created, body) VALUES (?, ?, ?, ?, ?);",
+            (s["id"], fm.get("title", ""), fm.get("project", ""), fm.get("created", ""), s["body"])
+        )
+
+    cur.execute("DELETE FROM tasks_fts;")
+    for t in all_tasks():
+        fm = t["fm"]
+        cur.execute(
+            "INSERT INTO tasks_fts (id, title, project, spec_id, agent, status, body) VALUES (?, ?, ?, ?, ?, ?, ?);",
+            (t["id"], fm.get("title", ""), fm.get("project", ""), fm.get("spec_id", ""),
+             fm.get("agent", ""), fm.get("status", "backlog"), t["body"])
+        )
+
     conn.commit()
     conn.close()
 
 
 def search_claims_fts(query: str, status: str = "", tag: str = ""):
-    """Searches claims using FTS5 BM25 ranking. Falls back to substring scan if FTS syntax error."""
+    """Searches claims using FTS5 BM25 ranking."""
     if not query and not status and not tag:
         return all_claims()
 
@@ -275,10 +334,8 @@ def search_claims_fts(query: str, status: str = "", tag: str = ""):
     cur = conn.cursor()
     results = []
 
-    # Clean query for FTS5 (escape quotes or split tokens)
     clean_q = query.strip()
     if clean_q:
-        # wrap individual tokens if not containing special operators
         tokens = [t for t in re.split(r'\s+', clean_q) if t]
         fts_query = " ".join(f'"{t}"' if not any(op in t for op in ("AND", "OR", "NOT", "*")) else t for t in tokens)
     else:
@@ -296,7 +353,6 @@ def search_claims_fts(query: str, status: str = "", tag: str = ""):
         else:
             id_ranks = None
     except sqlite3.OperationalError:
-        # Fallback to simple matching if syntax error in query
         id_ranks = None
 
     conn.close()
@@ -316,7 +372,6 @@ def search_claims_fts(query: str, status: str = "", tag: str = ""):
             if cid in id_ranks:
                 results.append((c, id_ranks[cid]))
         elif clean_q:
-            # Fallback substring search
             hay = (fm.get("claim", "") + " " + fm.get("tags", "") + " " + fm.get("source", "") + " " + c["body"]).lower()
             if clean_q.lower() in hay:
                 results.append((c, 0.0))
@@ -376,7 +431,7 @@ def search_context_fts(query: str, project: str = "", agent: str = "", tag: str 
     if id_ranks is not None:
         results.sort(key=lambda x: x[1])
     else:
-        results.reverse()  # Newest first when no query ranking
+        results.reverse()
     return [r[0] for r in results]
 
 
@@ -410,7 +465,6 @@ def all_claims():
 
 
 def chain_issues(cid, seen=None):
-    """Return a list of chain-integrity issues for a claim (dangling/cycles)."""
     seen = seen or set()
     issues = []
     if cid in seen:
@@ -428,8 +482,63 @@ def chain_issues(cid, seen=None):
     return issues
 
 
+# ---- spec helpers (Traycer pattern) ----
+SPEC_FM_ORDER = ("id", "title", "project", "phases", "created", "updated")
+
+
+def spec_path(spec_id):
+    return VAULT / SPECS_DIR / (spec_id + ".md")
+
+
+def get_spec(spec_id):
+    p = spec_path(spec_id)
+    rec = parse_frontmatter(p)
+    if rec:
+        rec["id"] = spec_id
+    return rec
+
+
+def all_specs():
+    out = []
+    d = VAULT / SPECS_DIR
+    if d.exists():
+        for p in sorted(d.glob("spec-*.md")):
+            s = get_spec(p.stem)
+            if s:
+                out.append(s)
+    return out
+
+
+# ---- task helpers (agtx Kanban pattern) ----
+TASK_FM_ORDER = ("id", "title", "project", "spec_id", "phase", "agent",
+                 "status", "files", "created", "updated")
+
+
+def task_path(task_id):
+    return VAULT / TASKS_DIR / (task_id + ".md")
+
+
+def get_task(task_id):
+    p = task_path(task_id)
+    rec = parse_frontmatter(p)
+    if rec:
+        rec["id"] = task_id
+    return rec
+
+
+def all_tasks():
+    out = []
+    d = VAULT / TASKS_DIR
+    if d.exists():
+        for p in sorted(d.glob("t-*.md")):
+            t = get_task(p.stem)
+            if t:
+                out.append(t)
+    return out
+
+
 # ---- session helpers ----
-SESSION_FM_ORDER = ("id", "agent", "project", "task", "branch", "worktree", "status",
+SESSION_FM_ORDER = ("id", "agent", "project", "task", "task_id", "branch", "worktree", "status",
                     "files", "lease_expires", "started", "updated", "ended",
                     "target_agent", "test_status")
 
@@ -458,7 +567,6 @@ def all_sessions():
 
 
 def get_active_file_locks():
-    """Returns a map of {file_path: {session_id, agent, project, expires, remaining_mins}}."""
     locks = {}
     now_utc = datetime.now(timezone.utc)
     for s in all_sessions():
@@ -535,8 +643,9 @@ def git_commit(msg):
 # ================ KNOWLEDGE & CLAIMS COMMANDS ================
 
 def cmd_init(args, cfg=None):
-    for d in (CLAIMS_DIR, "decisions", "projects", "experiments", "people",
-              SESSIONS_DIR, CONTEXT_DIR, CONTEXT_ARCHIVE_DIR, META_DIR):
+    for d in (CLAIMS_DIR, SPECS_DIR, TASKS_DIR, SESSIONS_DIR,
+              CONTEXT_DIR, CONTEXT_ARCHIVE_DIR, META_DIR,
+              "decisions", "projects", "experiments", "people"):
         (VAULT / d).mkdir(parents=True, exist_ok=True)
     gitignore = """# state & lock files
 .lock
@@ -552,11 +661,11 @@ sessions/*.json
     save_config(load_config())
     readme_path = VAULT / "README.md"
     if not readme_path.exists():
-        atomic_write(readme_path, f"# Second Brain\n\nMulti-agent coordination hub. Vault: {VAULT}\n")
+        atomic_write(readme_path, f"# Second Brain (v4)\n\nMulti-agent coordination hub. Vault: {VAULT}\n")
     if not (VAULT / ".git").exists():
         subprocess.run(["git", "init"], cwd=VAULT, capture_output=True)
     reindex_all_search()
-    git_commit("init vault skeleton")
+    git_commit("init vault skeleton v4")
     print(f"vault initialised at {VAULT}")
     return 0
 
@@ -637,7 +746,6 @@ def cmd_dispute(args, cfg):
 
 
 def cmd_promote(args, cfg):
-    """Promotes a context note into a permanent claim."""
     note = get_context_note(args.id)
     if not note:
         print(f"context note {args.id} not found")
@@ -651,7 +759,7 @@ def cmd_promote(args, cfg):
 
     cfm = {
         "id": cid,
-        "claim": claim_text.split("\n")[0][:200],  # first line as summary
+        "claim": claim_text.split("\n")[0][:200],
         "status": "active",
         "confidence": args.confidence,
         "created": ts,
@@ -665,8 +773,6 @@ def cmd_promote(args, cfg):
             f"Promoted from [[{note['id']}]] on {ts}. Original agent: {nfm.get('agent', 'unknown')}.\n")
 
     atomic_write(claim_path(cid), frontmatter_block(cfm, CLAIM_FM_ORDER) + "\n" + body)
-
-    # Mark original note as promoted
     nfm["promoted_to"] = cid
     atomic_write(note["path"], frontmatter_block(nfm, CONTEXT_FM_ORDER) + "\n" + note["body"] + f"\n\n> Promoted to claim [[{cid}]] on {ts}\n")
 
@@ -677,7 +783,6 @@ def cmd_promote(args, cfg):
 
 
 def cmd_recall(args, cfg):
-    """BM25 full-text recall over claims using SQLite FTS5."""
     withhold = cfg.get("recall", {}).get("withhold", list(WITHHELD_STATUSES))
     matched_claims = search_claims_fts(args.query or "", status=args.status or "", tag=args.tag or "")
 
@@ -723,10 +828,12 @@ def cmd_status(args, cfg):
     active_sessions = [s for s in sessions if s["fm"].get("status") == "active"]
     notes = all_context_notes(include_archived=False)
     file_locks = get_active_file_locks()
+    specs = all_specs()
+    tasks = all_tasks()
 
     print(f"claims: {len(claims)}  by status: {dict(counts)}")
-    print(f"sessions: {len(sessions)} total, {len(active_sessions)} active")
-    print(f"active file locks: {len(file_locks)}")
+    print(f"specs: {len(specs)} | tasks: {len(tasks)} ({sum(1 for t in tasks if t['fm'].get('status') == 'running')} running, {sum(1 for t in tasks if t['fm'].get('status') == 'review')} in review)")
+    print(f"sessions: {len(sessions)} total, {len(active_sessions)} active | file locks: {len(file_locks)}")
     print(f"context notes: {len(notes)}")
     print(f"L0 pointer file: {l0_size}B / {L0_BUDGET}B budget ({'OK' if l0_size <= L0_BUDGET else 'OVER BUDGET'})")
     if issues:
@@ -779,10 +886,146 @@ def cmd_related(args, cfg):
     return 0
 
 
-# ================ COORDINATION & CONCURRENCY COMMANDS ================
+# ================ UPSTREAM SPECS (Traycer Pattern) ================
+
+def cmd_spec_create(args, cfg):
+    ts = now()
+    spec_id = "spec-" + datetime.now().strftime("%Y%m%d") + "-" + uuid.uuid4().hex[:6]
+    fm = {
+        "id": spec_id,
+        "title": args.title,
+        "project": args.project or "",
+        "phases": args.phases or "",
+        "created": ts,
+        "updated": ts,
+    }
+    body = f"# Spec: {args.title}\n\n## Overview\n{args.spec}\n\n"
+    if args.phases:
+        body += "## Execution Phases\n"
+        for i, ph in enumerate([p.strip() for p in args.phases.split(",") if p.strip()], 1):
+            body += f"- [ ] **Phase {i}:** {ph}\n"
+        body += "\n"
+
+    atomic_write(spec_path(spec_id), frontmatter_block(fm, SPEC_FM_ORDER) + "\n" + body)
+    reindex_all_search()
+    git_commit(f"spec {spec_id}: {args.title[:60]}")
+    print(f"spec {spec_id} created -> {spec_path(spec_id)}")
+    return 0
+
+
+def cmd_specs(args, cfg):
+    specs = all_specs()
+    if args.project:
+        specs = [s for s in specs if s["fm"].get("project") == args.project]
+    specs.reverse()
+    print(f"== SPECS == ({len(specs)} shown)")
+    for s in specs:
+        fm = s["fm"]
+        age = time_ago(fm.get("created", ""))
+        proj = f" ({fm.get('project')})" if fm.get("project") else ""
+        print(f"  [{s['id']}]{proj} {fm.get('title')} [{age}]")
+        if fm.get("phases"):
+            print(f"      phases: {fm.get('phases')}")
+    return 0
+
+
+# ================ KANBAN TASKS (agtx Pattern) ================
+
+def cmd_task_create(args, cfg):
+    ts = now()
+    task_id = "t-" + datetime.now().strftime("%Y%m%d") + "-" + uuid.uuid4().hex[:6]
+    fm = {
+        "id": task_id,
+        "title": args.title,
+        "project": args.project or "",
+        "spec_id": args.spec or "",
+        "phase": args.phase or "",
+        "agent": args.agent or "",
+        "status": "backlog",
+        "files": args.files or "",
+        "created": ts,
+        "updated": ts,
+    }
+    body = f"# Task: {args.title}\n\n"
+    if args.spec:
+        body += f"Linked Spec: [[{args.spec}]]\n\n"
+    body += "## Activity Log\n"
+    body += f"- [{ts[11:16]}] Created in backlog\n"
+
+    atomic_write(task_path(task_id), frontmatter_block(fm, TASK_FM_ORDER) + "\n" + body)
+    reindex_all_search()
+    git_commit(f"task {task_id}: {args.title[:60]} (backlog)")
+    print(f"task {task_id} created in backlog -> {task_path(task_id)}")
+    return 0
+
+
+def cmd_task_move(args, cfg):
+    target_status = args.status.lower()
+    if target_status not in TASK_STATUSES:
+        print(f"Invalid status '{target_status}'. Must be one of: {', '.join(TASK_STATUSES)}")
+        return 1
+
+    t = get_task(args.id)
+    if not t:
+        print(f"task {args.id} not found")
+        return 1
+
+    ts = now()
+    old_status = t["fm"].get("status", "backlog")
+    t["fm"]["status"] = target_status
+    t["fm"]["updated"] = ts
+    if args.agent:
+        t["fm"]["agent"] = args.agent
+
+    body = t["body"]
+    agent_tag = f" by {args.agent}" if args.agent else ""
+    notes_tag = f" — {args.notes}" if args.notes else ""
+    log_line = f"- [{ts[11:16]}] Moved: {old_status} -> {target_status}{agent_tag}{notes_tag}\n"
+    body += "\n" + log_line
+
+    atomic_write(t["path"], frontmatter_block(t["fm"], TASK_FM_ORDER) + "\n" + body + "\n")
+    reindex_all_search()
+    git_commit(f"task {args.id}: {old_status} -> {target_status}")
+    print(f"task {args.id} moved to [{target_status}]")
+    return 0
+
+
+def cmd_tasks(args, cfg):
+    tasks = all_tasks()
+    filtered = []
+    for t in tasks:
+        if args.project and t["fm"].get("project") != args.project:
+            continue
+        if args.status and t["fm"].get("status") != args.status:
+            continue
+        if args.agent and t["fm"].get("agent") != args.agent:
+            continue
+        filtered.append(t)
+
+    print(f"== TASKS ({len(filtered)} total) ==")
+    by_col = {col: [] for col in TASK_STATUSES}
+    for t in filtered:
+        col = t["fm"].get("status", "backlog")
+        if col in by_col:
+            by_col[col].append(t)
+
+    for col in TASK_STATUSES:
+        col_tasks = by_col[col]
+        print(f"\n--- {col.upper()} ({len(col_tasks)}) ---")
+        if not col_tasks:
+            print("  (empty)")
+        for t in col_tasks:
+            fm = t["fm"]
+            agent_str = f" [{fm.get('agent')}]" if fm.get("agent") else ""
+            proj_str = f" ({fm.get('project')})" if fm.get("project") else ""
+            spec_str = f" spec:[[{fm.get('spec_id')}]]" if fm.get("spec_id") else ""
+            print(f"  * {t['id']}{proj_str}{agent_str}: {fm.get('title')}{spec_str}")
+    return 0
+
+
+# ================ SESSIONS & CONCURRENCY COMMANDS ================
 
 def cmd_check_files(args, cfg):
-    """Check if specified files are currently reserved/locked by another agent."""
     if not args.files:
         print("No files specified.")
         return 0
@@ -808,21 +1051,18 @@ def cmd_session_start(args, cfg):
     ts = now()
     sid = "s-" + datetime.now().strftime("%Y%m%d") + "-" + uuid.uuid4().hex[:6]
 
-    # Calculate lease expiration if files are specified
     lease_mins = args.lease or cfg.get("session", {}).get("default_lease_mins", DEFAULT_LEASE_MINS)
     lease_expires = ""
     if args.files:
         exp_dt = datetime.now(timezone.utc) + timedelta(minutes=lease_mins)
         lease_expires = exp_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
-        # Conflict check
         target_files = [f.strip() for f in args.files.split(",") if f.strip()]
         locks = get_active_file_locks()
         conflicts = [f for f in target_files if f in locks]
         if conflicts:
             print(f"WARNING: File reservation conflict! Files already locked: {', '.join(conflicts)}")
 
-    # Auto-detect git branch if not provided
     branch = args.branch or ""
     if not branch:
         try:
@@ -837,6 +1077,7 @@ def cmd_session_start(args, cfg):
         "agent": args.agent,
         "project": args.project or "",
         "task": args.task or "",
+        "task_id": args.task_id or "",
         "branch": branch,
         "worktree": args.worktree or "",
         "status": "active",
@@ -873,7 +1114,6 @@ def cmd_session_update(args, cfg):
     ts = now()
     s["fm"]["updated"] = ts
 
-    # Update / extend files and lease
     if args.files:
         s["fm"]["files"] = args.files
     if args.extend_lease:
@@ -894,7 +1134,6 @@ def cmd_session_update(args, cfg):
 
 
 def cmd_reserve(args, cfg):
-    """Claim or update file reservations on an active session."""
     s = get_session(args.id)
     if not s:
         print(f"session {args.id} not found")
@@ -907,7 +1146,6 @@ def cmd_reserve(args, cfg):
     exp_dt = datetime.now(timezone.utc) + timedelta(minutes=lease_mins)
     lease_expires = exp_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
-    # Conflict check with other sessions
     target_files = [f.strip() for f in args.files.split(",") if f.strip()]
     locks = get_active_file_locks()
     conflicts = [f for f in target_files if f in locks and locks[f]["session_id"] != args.id]
@@ -932,7 +1170,6 @@ def cmd_reserve(args, cfg):
 
 
 def cmd_session_end(args, cfg):
-    """End a session with optional structured handoff metadata."""
     s = get_session(args.id)
     if not s:
         print(f"session {args.id} not found")
@@ -941,9 +1178,8 @@ def cmd_session_end(args, cfg):
     s["fm"]["status"] = "ended"
     s["fm"]["updated"] = ts
     s["fm"]["ended"] = ts
-    s["fm"]["lease_expires"] = ""  # Release file lease immediately
+    s["fm"]["lease_expires"] = ""
 
-    # Structured handoff fields
     if args.target_agent:
         s["fm"]["target_agent"] = args.target_agent
     if args.test_status:
@@ -1026,7 +1262,6 @@ def cmd_post(args, cfg):
 
 
 def cmd_read(args, cfg):
-    """Reads context notes with optional BM25 search."""
     limit = args.limit or cfg.get("context", {}).get("default_limit", 20)
     notes = search_context_fts(args.query or "", project=args.project or "", agent=args.agent or "", tag=args.tag or "")
     filtered = notes[:limit]
@@ -1048,23 +1283,43 @@ def cmd_read(args, cfg):
 
 
 def cmd_dashboard(args, cfg):
-    """Full multi-agent situational awareness with file locks and handoffs."""
+    """Full multi-agent situational awareness with Kanban Board, Sessions, and Locks."""
     sessions = all_sessions()
     active = [s for s in sessions if s["fm"].get("status") == "active"]
     recent_ended = [s for s in sessions if s["fm"].get("status") == "ended"][-5:]
 
+    tasks = all_tasks()
     notes = all_context_notes(include_archived=False)
     recent_notes = list(reversed(notes))[:5]
     claims = all_claims()
     active_claims = [c for c in claims if c["fm"].get("status", "active") == "active"]
     locks = get_active_file_locks()
 
-    print("=" * 46)
-    print("        SECOND BRAIN -- DASHBOARD")
-    print("=" * 46)
+    print("=" * 48)
+    print("         SECOND BRAIN -- DASHBOARD (v4)")
+    print("=" * 48)
     print()
 
-    # Active Sessions
+    # 1. Kanban Task Board Overview
+    print("> KANBAN TASK BOARD")
+    kanban_counts = {st: sum(1 for t in tasks if t['fm'].get('status') == st) for st in TASK_STATUSES}
+    print(f"  Backlog: {kanban_counts['backlog']} | Planning: {kanban_counts['planning']} | Running: {kanban_counts['running']} | Review: {kanban_counts['review']} | Done: {kanban_counts['done']}")
+
+    running_tasks = [t for t in tasks if t['fm'].get('status') == 'running']
+    review_tasks = [t for t in tasks if t['fm'].get('status') == 'review']
+
+    if running_tasks or review_tasks:
+        for t in running_tasks:
+            fm = t["fm"]
+            agent = f" ({fm.get('agent')})" if fm.get("agent") else ""
+            print(f"  [RUNNING]{agent} {t['id']} -> {fm.get('title')}")
+        for t in review_tasks:
+            fm = t["fm"]
+            agent = f" ({fm.get('agent')})" if fm.get("agent") else ""
+            print(f"  [REVIEW]{agent} {t['id']} -> {fm.get('title')}")
+    print()
+
+    # 2. Active Agent Sessions
     print(f"> ACTIVE SESSIONS ({len(active)})")
     if active:
         for s in active:
@@ -1078,14 +1333,14 @@ def cmd_dashboard(args, cfg):
         print("  (none)")
     print()
 
-    # Active File Locks
+    # 3. Active File Locks
     if locks:
         print(f"> ACTIVE FILE LEASES ({len(locks)})")
         for fpath, l in locks.items():
             print(f"  [LOCK] {fpath} -> {l['agent']} ({l['project']}) [expires in {l['remaining_mins']}m]")
         print()
 
-    # Recent Handoffs & Completed
+    # 4. Recent Handoffs
     if recent_ended:
         print(f"> RECENT SESSIONS & HANDOFFS ({len(recent_ended)})")
         for s in reversed(recent_ended):
@@ -1095,7 +1350,7 @@ def cmd_dashboard(args, cfg):
             print(f"  [done] {fm.get('agent','?')} -> {fm.get('project','') or 'unscoped'}: {fm.get('task','')}{handoff} (ended {age})")
         print()
 
-    # Recent Context
+    # 5. Recent Context
     print(f"> RECENT CONTEXT ({len(recent_notes)})")
     if recent_notes:
         for n in recent_notes:
@@ -1107,7 +1362,7 @@ def cmd_dashboard(args, cfg):
         print("  (none)")
     print()
 
-    # Vault Health
+    # 6. Vault Health
     l0_path = VAULT / META_DIR / L0_NAME
     l0_size = l0_path.stat().st_size if l0_path.exists() else 0
     print(f"> VAULT: {len(active_claims)} active claims, L0={l0_size}B/{L0_BUDGET}B (FTS5 active)")
@@ -1137,7 +1392,7 @@ def cmd_sweep(args, cfg):
         if updated and updated < cutoff:
             s["fm"]["status"] = "stale"
             s["fm"]["updated"] = ts
-            s["fm"]["lease_expires"] = ""  # clear lease
+            s["fm"]["lease_expires"] = ""
             body = s["body"]
             if "## Outcomes" in body:
                 body = body.replace("## Outcomes\n(pending)", f"## Outcomes\n(stale — auto-expired by sweep {ts})")
@@ -1153,7 +1408,6 @@ def cmd_sweep(args, cfg):
         except ValueError:
             created = None
         if created and created < ttl_cutoff:
-            # Move to archive directory
             arch_dir = VAULT / CONTEXT_ARCHIVE_DIR
             arch_dir.mkdir(parents=True, exist_ok=True)
             target_path = arch_dir / (n["id"] + ".md")
@@ -1180,7 +1434,7 @@ def cmd_sweep(args, cfg):
                 atomic_write(c["path"], frontmatter_block(c["fm"], CLAIM_FM_ORDER) + "\n" + body + "\n")
             changed.append((c["id"], f"stale ({age_days}d) - flagged for review"))
 
-    # 4. Rebuild FTS5 Index
+    # 4. Rebuild FTS5 Index (claims, context, specs, tasks)
     reindex_all_search()
 
     # 5. Rebuild L0 Pointer Set (Budget-Aware)
@@ -1193,18 +1447,29 @@ def cmd_sweep(args, cfg):
     # Section 1: Active sessions & file locks
     active_sessions = [s for s in all_sessions() if s["fm"].get("status") == "active"]
     if active_sessions:
-        l0_lines.append("## Active")
+        l0_lines.append("## Active Sessions")
         for s in active_sessions[:5]:
             fm = s["fm"]
             agent = fm.get("agent", "?")
             proj = fm.get("project", "") or "unscoped"
             task = fm.get("task", "")[:50]
             age = time_ago(fm.get("started", ""))
-            locks = f" [locks: {fm.get('files')[:30]}..]" if fm.get("files") else ""
+            locks = f" [locks: {fm.get('files')[:30]}..]" if fm.get('files') else ""
             l0_lines.append(f"- {agent} -> {proj}: {task}{locks} ({age})")
         l0_lines.append("")
 
-    # Section 2: Recent context notes
+    # Section 2: Active Kanban Tasks (running / review)
+    active_tasks = [t for t in all_tasks() if t["fm"].get("status") in ("running", "review")][:3]
+    if active_tasks:
+        l0_lines.append("## Active Tasks")
+        for t in active_tasks:
+            fm = t["fm"]
+            st = fm.get("status", "").upper()
+            agent = f" [{fm.get('agent')}]" if fm.get("agent") else ""
+            l0_lines.append(f"- [{st}]{agent} {t['id']}: {fm.get('title')[:60]}")
+        l0_lines.append("")
+
+    # Section 3: Recent context notes
     recent_ctx = list(reversed(all_context_notes(include_archived=False)))[:5]
     if recent_ctx:
         l0_lines.append("## Context")
@@ -1217,7 +1482,7 @@ def cmd_sweep(args, cfg):
             l0_lines.append(f"- [{agent}] {preview}{proj_tag}")
         l0_lines.append("")
 
-    # Section 3: Active claims (truncated to fit remaining budget)
+    # Section 4: Active claims (truncated to fit remaining budget)
     active_claims = [c for c in all_claims() if c["fm"].get("status", "active") == "active"]
     header_size = len("\n".join(l0_lines).encode("utf-8"))
     remaining = L0_BUDGET - header_size - 50
@@ -1250,7 +1515,7 @@ def cmd_sweep(args, cfg):
 # ================ CLI ================
 
 def main():
-    ap = argparse.ArgumentParser(description="Second Brain — multi-agent coordination hub")
+    ap = argparse.ArgumentParser(description="Second Brain — multi-agent coordination hub (v4)")
     sub = ap.add_subparsers(dest="cmd")
 
     # -- knowledge commands --
@@ -1293,11 +1558,42 @@ def main():
     p_sw = sub.add_parser("sweep")
     p_sw.add_argument("--commit", action="store_true")
 
-    # -- coordination & concurrency commands --
+    # -- upstream specs commands (Traycer) --
+    p_spec_c = sub.add_parser("spec-create")
+    p_spec_c.add_argument("--title", required=True)
+    p_spec_c.add_argument("--spec", required=True)
+    p_spec_c.add_argument("--project", default="")
+    p_spec_c.add_argument("--phases", default="")
+
+    p_specs = sub.add_parser("specs")
+    p_specs.add_argument("--project", default="")
+
+    # -- kanban tasks commands (agtx) --
+    p_task_c = sub.add_parser("task-create")
+    p_task_c.add_argument("--title", required=True)
+    p_task_c.add_argument("--project", default="")
+    p_task_c.add_argument("--spec", default="")
+    p_task_c.add_argument("--agent", default="")
+    p_task_c.add_argument("--phase", default="")
+    p_task_c.add_argument("--files", default="")
+
+    p_task_m = sub.add_parser("task-move")
+    p_task_m.add_argument("id")
+    p_task_m.add_argument("--status", required=True)
+    p_task_m.add_argument("--agent", default="")
+    p_task_m.add_argument("--notes", default="")
+
+    p_tasks = sub.add_parser("tasks")
+    p_tasks.add_argument("--project", default="")
+    p_tasks.add_argument("--status", default="")
+    p_tasks.add_argument("--agent", default="")
+
+    # -- sessions & concurrency commands --
     p_ss = sub.add_parser("session-start")
     p_ss.add_argument("--agent", required=True)
     p_ss.add_argument("--project", default="")
     p_ss.add_argument("--task", default="")
+    p_ss.add_argument("--task-id", default="")
     p_ss.add_argument("--branch", default="")
     p_ss.add_argument("--worktree", default="")
     p_ss.add_argument("--files", default="")
@@ -1361,11 +1657,12 @@ def main():
             "init": cmd_init, "claim": cmd_claim, "supersede": cmd_supersede,
             "dispute": cmd_dispute, "promote": cmd_promote, "recall": cmd_recall,
             "status": cmd_status, "sweep": cmd_sweep, "verify": cmd_verify,
-            "related": cmd_related, "session-start": cmd_session_start,
-            "session-update": cmd_session_update, "session-end": cmd_session_end,
-            "reserve": cmd_reserve, "check-files": cmd_check_files,
-            "sessions": cmd_sessions, "post": cmd_post, "read": cmd_read,
-            "dashboard": cmd_dashboard,
+            "related": cmd_related, "spec-create": cmd_spec_create, "specs": cmd_specs,
+            "task-create": cmd_task_create, "task-move": cmd_task_move, "tasks": cmd_tasks,
+            "session-start": cmd_session_start, "session-update": cmd_session_update,
+            "session-end": cmd_session_end, "reserve": cmd_reserve,
+            "check-files": cmd_check_files, "sessions": cmd_sessions,
+            "post": cmd_post, "read": cmd_read, "dashboard": cmd_dashboard,
         }
         return handlers[args.cmd](args, cfg)
 

@@ -1,5 +1,5 @@
 {
-  "vault_version": 3,
+  "vault_version": 4,
   "sweep": {
     "expire_unreviewed_after_days": 120,
     "stale_after_days": 90
