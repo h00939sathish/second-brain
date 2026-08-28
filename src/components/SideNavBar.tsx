@@ -22,6 +22,11 @@ export const SideNavBar: React.FC<SideNavBarProps> = ({
 }) => {
   const navItems = [
     {
+      tab: 'workflow' as NavigationTab,
+      label: 'Workflow Orchestrator',
+      icon: 'account_tree',
+    },
+    {
       tab: 'kanban' as NavigationTab,
       label: 'Kanban Board',
       icon: 'view_kanban',

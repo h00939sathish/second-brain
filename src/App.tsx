@@ -1,5 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { NavigationTab, KanbanTask, LogEntry, InferenceRecord, QueueTask } from './types';
+import {
+  NavigationTab,
+  KanbanTask,
+  LogEntry,
+  InferenceRecord,
+  QueueTask,
+  WorkflowPipeline,
+} from './types';
 import {
   INITIAL_CONSUMPTION_DATA,
   INITIAL_INFERENCES,
@@ -11,9 +18,11 @@ import {
   INITIAL_GRAPH_NODES,
   INITIAL_QUEUE_TASKS,
   INITIAL_DAEMON_LOADS,
+  INITIAL_PIPELINE,
 } from './data/initialData';
 import { TopAppBar } from './components/TopAppBar';
 import { SideNavBar } from './components/SideNavBar';
+import { WorkflowOrchestratorView } from './components/WorkflowOrchestratorView';
 import { TokenTelemetryView } from './components/TokenTelemetryView';
 import { KanbanBoardView } from './components/KanbanBoardView';
 import { LiveTerminalLogsView } from './components/LiveTerminalLogsView';
@@ -29,9 +38,12 @@ import { CreateTaskModal, DocsSupportModal } from './components/CreateTaskModal'
 
 export const App: React.FC = () => {
   // Navigation & Brand state
-  const [currentTab, setCurrentTab] = useState<NavigationTab>('kanban');
+  const [currentTab, setCurrentTab] = useState<NavigationTab>('workflow');
   const [brandVariant, setBrandVariant] = useState<'secondBrain' | 'antigravity'>('secondBrain');
   const [daemonSeconds, setDaemonSeconds] = useState(15);
+
+  // Workflow Pipeline State
+  const [pipeline, setPipeline] = useState<WorkflowPipeline>(INITIAL_PIPELINE);
 
   // Core domain states
   const [inferences, setInferences] = useState<InferenceRecord[]>(INITIAL_INFERENCES);
@@ -113,7 +125,7 @@ export const App: React.FC = () => {
           }
         }
       } catch (err) {
-        // Fall back gracefully to initial demo data
+        // Fall back gracefully to initial data
       }
     };
 
@@ -174,7 +186,6 @@ export const App: React.FC = () => {
   const handleAddTask = async (newTask: KanbanTask) => {
     setKanbanTasks((prev) => [newTask, ...prev]);
 
-    // Send task creation to backend
     try {
       await fetch('/api/tasks', {
         method: 'POST',
@@ -191,8 +202,12 @@ export const App: React.FC = () => {
     }
   };
 
-  const handleUpdateTasks = async (newTasks: KanbanTask[]) => {
+  const handleUpdateTasks = (newTasks: KanbanTask[]) => {
     setKanbanTasks(newTasks);
+  };
+
+  const handleLogEvent = (newLog: LogEntry) => {
+    setLogs((prev) => [...prev, newLog]);
   };
 
   return (
@@ -222,10 +237,11 @@ export const App: React.FC = () => {
 
         {/* Main Content Area */}
         <main className="flex-1 md:ml-64 p-4 md:p-6 lg:p-8 min-w-0 max-w-7xl overflow-x-hidden">
-          {currentTab === 'telemetry' && (
-            <TokenTelemetryView
-              consumptionData={consumptionData}
-              inferences={inferences}
+          {currentTab === 'workflow' && (
+            <WorkflowOrchestratorView
+              pipeline={pipeline}
+              onUpdatePipeline={setPipeline}
+              onLogEvent={handleLogEvent}
             />
           )}
 
@@ -238,6 +254,13 @@ export const App: React.FC = () => {
               contextMessages={contextMessages}
               onOpenTaskModal={(task) => setSelectedTask(task)}
               onAddTask={() => setIsCreateTaskOpen(true)}
+            />
+          )}
+
+          {currentTab === 'telemetry' && (
+            <TokenTelemetryView
+              consumptionData={consumptionData}
+              inferences={inferences}
             />
           )}
 
@@ -331,4 +354,3 @@ export const App: React.FC = () => {
 };
 
 export default App;
-

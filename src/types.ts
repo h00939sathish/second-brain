@@ -1,10 +1,58 @@
 export type NavigationTab = 
+  | 'workflow'
   | 'telemetry' 
   | 'kanban' 
   | 'graph' 
   | 'logs' 
   | 'specs' 
   | 'network';
+
+export type AgentRoleType = 'planning' | 'building' | 'reviewing' | 'qa' | 'deployment';
+
+export interface WorkflowAgent {
+  id: string;
+  name: string;
+  code: string;
+  model: string;
+  avatarIcon: string;
+  role: AgentRoleType;
+  color: string;
+  temperature: number;
+  systemPrompt: string;
+  status: 'idle' | 'executing' | 'completed' | 'paused';
+  metrics?: {
+    avgLatency: string;
+    tokenBurn: string;
+    successRate: string;
+  };
+}
+
+export interface WorkflowStageNode {
+  id: string;
+  title: string;
+  stageType: AgentRoleType;
+  description: string;
+  assignedAgentId: string;
+  agentName: string;
+  agentModel: string;
+  agentColor: string;
+  status: 'idle' | 'active' | 'passed' | 'failed' | 'skipped';
+  autoHandoff: boolean;
+  requiredApproval: boolean;
+  maxRetries: number;
+  outputArtifactName?: string;
+  systemInstruction?: string;
+}
+
+export interface WorkflowPipeline {
+  id: string;
+  name: string;
+  description: string;
+  activeStageId: string | null;
+  isRunning: boolean;
+  currentStepIndex: number;
+  stages: WorkflowStageNode[];
+}
 
 export type TimeRange = '1H' | '24H' | '7D';
 
