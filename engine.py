@@ -843,6 +843,19 @@ def cmd_dispatch(args, cfg):
     print(f"  Project: {project_name or 'Default'} (cwd: {cwd})")
     print(f"  Task: {fm.get('title')}")
 
+    # Advance task status to 'running' (or 'planning' if architect) upon dispatch
+    current_status = fm.get("status", "backlog")
+    new_status = "planning" if target_agent == "codex" and current_status == "backlog" else "running"
+    if current_status != new_status and current_status != "done":
+        ts = now()
+        fm["status"] = new_status
+        fm["updated"] = ts
+        fm["agent"] = target_agent
+        body = t["body"] + f"\n- [{ts[11:16]}] Dispatched to {target_agent} -> [{new_status}]\n"
+        atomic_write(t["path"], frontmatter_block(fm, TASK_FM_ORDER) + "\n" + body)
+        reindex_all_search()
+        git_commit(f"task {t['id']}: dispatched to {target_agent} [{new_status}]")
+
     log_dir = VAULT / LOGS_DIR
     log_dir.mkdir(parents=True, exist_ok=True)
     prompt_file = log_dir / f"{t['id']}.prompt.txt"

@@ -18,6 +18,7 @@ interface KanbanBoardViewProps {
   onAddTask: () => void;
   onTerminateTask?: (taskId: string) => void;
   onDeleteTask?: (taskId: string) => void;
+  onDispatchTask?: (taskId: string) => void;
 }
 
 export const KanbanBoardView: React.FC<KanbanBoardViewProps> = ({
@@ -30,6 +31,7 @@ export const KanbanBoardView: React.FC<KanbanBoardViewProps> = ({
   onAddTask,
   onTerminateTask,
   onDeleteTask,
+  onDispatchTask,
 }) => {
   useTrackComponentRender('KanbanBoardView');
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
@@ -54,6 +56,11 @@ export const KanbanBoardView: React.FC<KanbanBoardViewProps> = ({
     if (!draggedTaskId) return;
     const updated = tasks.map((t) => (t.id === draggedTaskId ? { ...t, status } : t));
     onUpdateTasks(updated);
+    fetch(`/api/tasks/${draggedTaskId}/move`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    }).catch(() => null);
     setDraggedTaskId(null);
   };
 
@@ -65,10 +72,16 @@ export const KanbanBoardView: React.FC<KanbanBoardViewProps> = ({
     const currentIndex = colOrder.indexOf(task.status);
     const newIndex = direction === 'left' ? currentIndex - 1 : currentIndex + 1;
     if (newIndex >= 0 && newIndex < colOrder.length) {
+      const newStatus = colOrder[newIndex];
       const updated = tasks.map((t) =>
-        t.id === taskId ? { ...t, status: colOrder[newIndex] } : t
+        t.id === taskId ? { ...t, status: newStatus } : t
       );
       onUpdateTasks(updated);
+      fetch(`/api/tasks/${taskId}/move`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      }).catch(() => null);
     }
   };
 
@@ -259,6 +272,18 @@ export const KanbanBoardView: React.FC<KanbanBoardViewProps> = ({
 
                             {/* Quick card action buttons */}
                             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              {['backlog', 'planning'].includes(task.status) && onDispatchTask && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onDispatchTask(task.id);
+                                  }}
+                                  className="px-2 py-0.5 rounded-full bg-[#C9A86A]/20 hover:bg-[#C9A86A]/30 text-[#C9A86A] border border-[#C9A86A]/40 font-semibold text-[9px] cursor-pointer transition-all flex items-center gap-0.5"
+                                  title="Dispatch task immediately to assigned agent"
+                                >
+                                  <span>⚡</span> Dispatch
+                                </button>
+                              )}
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();

@@ -228,6 +228,24 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleDispatchTask = async (taskId: string) => {
+    setKanbanTasks((prev) =>
+      prev.map((t) => (t.id === taskId ? { ...t, status: 'running' } : t))
+    );
+    if (selectedTask?.id === taskId) {
+      setSelectedTask((prev) => (prev ? { ...prev, status: 'running' } : null));
+    }
+    try {
+      await fetch('/api/dispatch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ task_id: taskId }),
+      });
+    } catch {
+      console.warn('Dispatch API offline, updated locally');
+    }
+  };
+
   const handleUpdateTasks = (newTasks: KanbanTask[]) => {
     setKanbanTasks(newTasks);
   };
@@ -282,6 +300,7 @@ export const App: React.FC = () => {
               onAddTask={() => setIsCreateTaskOpen(true)}
               onTerminateTask={handleTerminateTask}
               onDeleteTask={handleDeleteTask}
+              onDispatchTask={handleDispatchTask}
             />
           )}
 

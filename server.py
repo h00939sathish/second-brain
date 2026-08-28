@@ -342,11 +342,19 @@ class SecondBrainHandler(SimpleHTTPRequestHandler):
         elif path == "/api/dispatch":
             tid = body.get("task_id", "")
             agent = body.get("agent", "")
-            args = SimpleNamespace(id=tid, agent=agent, tab=False)
             with engine.lock():
                 cfg = engine.load_config()
+                t = engine.get_task(tid)
+                if t:
+                    st = t["fm"].get("status", "backlog")
+                    if st in ("backlog", "planning"):
+                        target_st = "running"
+                        target_agent = agent or t["fm"].get("agent") or "opencode"
+                        move_args = SimpleNamespace(id=tid, status=target_st, agent=target_agent, notes=f"Dispatched to {target_agent}")
+                        engine.cmd_task_move(move_args, cfg)
+                args = SimpleNamespace(id=tid, agent=agent, tab=False)
                 code = engine.cmd_dispatch(args, cfg)
-            return self._json_response({"success": code == 0})
+            return self._json_response({"success": code == 0, "status": "running"})
 
         elif path == "/api/auto-cycle":
             project = body.get("project", "")
