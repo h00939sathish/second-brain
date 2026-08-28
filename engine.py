@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-second_brain.py - Multi-agent coordination hub + autonomous execution pipeline (v4.2).
+second_brain.py - Multi-agent coordination hub + autonomous execution pipeline (v4.3).
 
 Tiered memory:
   L0 = compact pointers ALWAYS injected into agent sessions (~2.2KB budget)
@@ -13,7 +13,9 @@ Autonomous Role Pipeline:
   Gemini 3.7 Flash (AGY)   = CONTEXT ANALYST & FINAL REVIEWER (1M context critique, diff audit, test verification)
   opencode / Claude Code   = CORE BUILDERS & HEAVY LIFTERS (Phased code edits, file reservations, unit tests)
 
-* Rule: Neither Codex nor AGY performs repetitive heavy lifting; heavy code generation is offloaded to Builders.
+Automated Execution:
+  dispatch <task_id> [--tab]     Directly invoke the assigned agent CLI (headless or in a terminal tab)
+  auto-cycle [--project <p>]     Check Kanban board and dispatch the next actionable pipeline task
 """
 import argparse
 import json
@@ -39,6 +41,7 @@ META_DIR = "meta"
 CLAIMS_DIR = "claims"
 SPECS_DIR = "specs"
 TASKS_DIR = "tasks"
+LOGS_DIR = "tasks/logs"
 SESSIONS_DIR = "sessions"
 CONTEXT_DIR = "context"
 CONTEXT_ARCHIVE_DIR = "context/archive"
@@ -56,6 +59,7 @@ AGENT_ROLES = {
     "claude": "builder",
     "claude-code": "builder",
     "antigravity": "reviewer",
+    "agy": "reviewer",
     "hermes": "orchestrator",
 }
 
@@ -138,19 +142,35 @@ def atomic_write(path: Path, content: str):
 
 
 class FileLock:
-    def __init__(self, path: Path):
+    def __init__(self, path: Path, timeout: float = 10.0):
         self.path = path
+        self.timeout = timeout
         self._f = None
 
     def __enter__(self):
         self._f = open(self.path, "a+", encoding="utf-8")
+        start = time.time()
         if os.name == "nt":
             import msvcrt
             self._f.seek(0)
-            msvcrt.locking(self._f.fileno(), msvcrt.LK_LOCK, 1)
+            while True:
+                try:
+                    msvcrt.locking(self._f.fileno(), msvcrt.LK_NBLCK, 1)
+                    break
+                except (OSError, IOError):
+                    if time.time() - start > self.timeout:
+                        break
+                    time.sleep(0.05)
         else:
             import fcntl
-            fcntl.flock(self._f.fileno(), fcntl.LOCK_EX)
+            while True:
+                try:
+                    fcntl.flock(self._f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except (OSError, IOError):
+                    if time.time() - start > self.timeout:
+                        break
+                    time.sleep(0.05)
         return self
 
     def __exit__(self, *a):
@@ -162,9 +182,10 @@ class FileLock:
             else:
                 import fcntl
                 fcntl.flock(self._f.fileno(), fcntl.LOCK_UN)
-        except OSError:
+        except (OSError, IOError):
             pass
         self._f.close()
+
 
 
 def lock():
@@ -612,7 +633,7 @@ def git_commit(msg):
                    cwd=VAULT, capture_output=True)
 
 
-# ================ AUTONOMOUS PIPELINE ROUTER ================
+# ================ AUTONOMOUS PIPELINE ROUTER & DISPATCHER ================
 
 def estimate_workload_complexity(prompt: str, cfg: dict):
     p_cfg = cfg.get("pipeline", {})
@@ -640,7 +661,6 @@ def estimate_workload_complexity(prompt: str, cfg: dict):
 
 
 def cmd_cycle_route(args, cfg):
-    """Evaluates a user prompt and routes the agent into the appropriate workflow."""
     agent = (args.agent or "unknown").lower()
     project = args.project or "default"
     prompt = args.prompt or ""
@@ -765,10 +785,169 @@ def cmd_cycle_next(args, cfg):
     return 0
 
 
+def build_agent_prompt(task_dict):
+    """Constructs a comprehensive, role-aware prompt for the dispatched CLI agent."""
+    fm = task_dict["fm"]
+    tid = task_dict["id"]
+    title = fm.get("title", "")
+    project = fm.get("project", "")
+    spec_id = fm.get("spec_id", "")
+    status = fm.get("status", "backlog")
+    agent = fm.get("agent", "opencode").lower()
+
+    spec_text = ""
+    if spec_id:
+        sp = get_spec(spec_id)
+        if sp:
+            spec_text = f"\nLinked Upstream Spec [[{spec_id}]]:\n{sp['body']}\n"
+
+    prompt = f"""You have been dispatched by the Second Brain Autonomous Pipeline.
+
+Task ID: {tid}
+Project: {project or 'Default'}
+Task Title: {title}
+Current Status: [{status}]
+{spec_text}
+
+Protocol Instructions for {agent.upper()}:
+1. Use second-brain MCP tools (brain_session_start, brain_check_files, brain_recall).
+2. If you are Codex (Planner): Draft invariants and approve spec/tasks. Do NOT write repetitive code.
+3. If you are opencode/Claude (Builder): Reserve target files (brain_reserve), implement code phase, run tests, and hand off to Antigravity (brain_session_end with target_agent="antigravity", brain_task_move to "review").
+4. If you are Antigravity (Reviewer): Audit diffs against spec, run tests, post report (brain_post), and move task to "done".
+
+Begin execution now.
+"""
+    return prompt.strip()
+
+
+def cmd_dispatch(args, cfg):
+    """Invokes the assigned agent CLI for a specific task."""
+    t = get_task(args.id)
+    if not t:
+        print(f"task {args.id} not found")
+        return 1
+
+    fm = t["fm"]
+    target_agent = (args.agent or fm.get("agent") or "opencode").lower()
+    prompt = build_agent_prompt(t)
+
+    # Determine working directory
+    project_name = fm.get("project", "")
+    cwd = VAULT
+    if "TITAN" in project_name.upper():
+        titan_path = Path(r"D:\projects\Project TITAN")
+        if titan_path.exists():
+            cwd = titan_path
+
+    print(f"== DISPATCHING TASK [{t['id']}] to {target_agent.upper()} ==")
+    print(f"  Project: {project_name or 'Default'} (cwd: {cwd})")
+    print(f"  Task: {fm.get('title')}")
+
+    log_dir = VAULT / LOGS_DIR
+    log_dir.mkdir(parents=True, exist_ok=True)
+    prompt_file = log_dir / f"{t['id']}.prompt.txt"
+    log_file = log_dir / f"{t['id']}.log"
+
+    prompt_file.write_text(prompt, encoding="utf-8")
+
+    # Command map
+    cli_map = {
+        "codex": f"Get-Content -Raw '{prompt_file}' | codex.cmd exec -",
+        "codex-cli": f"Get-Content -Raw '{prompt_file}' | codex.cmd exec -",
+        "claude": f"Get-Content -Raw '{prompt_file}' | claude.exe -p",
+        "claude-code": f"Get-Content -Raw '{prompt_file}' | claude.exe -p",
+        "opencode": f"Get-Content -Raw '{prompt_file}' | opencode.cmd run",
+        "antigravity": f"Get-Content -Raw '{prompt_file}' | agy.exe exec",
+        "agy": f"Get-Content -Raw '{prompt_file}' | agy.exe exec",
+    }
+    pwsh_body = cli_map.get(target_agent, f"Get-Content -Raw '{prompt_file}' | opencode.cmd run")
+
+    if args.tab:
+        print(f"Opening interactive tab for {target_agent}...")
+        try:
+            wt_cmd = ["wt.exe", "-w", "0", "new-tab", "-d", str(cwd), "pwsh", "-NoExit", "-Command", pwsh_body]
+            subprocess.Popen(wt_cmd)
+            print("Tab opened in Windows Terminal.")
+            return 0
+        except Exception:
+            ps_cmd = ["start", "pwsh", "-NoExit", "-Command", f"cd '{cwd}'; {pwsh_body}"]
+            os.system(" ".join(ps_cmd))
+            print("Opened in PowerShell window.")
+            return 0
+
+    # Headless background execution
+    print(f"Running {target_agent} headlessly in background...")
+    try:
+        cmd = ["pwsh.exe", "-NoProfile", "-Command", f"cd '{cwd}'; {pwsh_body}"]
+        with open(log_file, "w", encoding="utf-8") as lf:
+            proc = subprocess.Popen(
+                cmd,
+                cwd=cwd,
+                stdout=lf,
+                stderr=subprocess.STDOUT
+            )
+            print(f"Process started (PID {proc.pid}). Output streamed to: {log_file}")
+            return 0
+    except Exception as e:
+        print(f"Error dispatching {target_agent}: {e}")
+        return 1
+
+
+
+def cmd_auto_cycle(args, cfg):
+    """Inspects the Kanban board and dispatches the highest-priority actionable task."""
+    project = args.project or ""
+    tasks = all_tasks()
+    if project:
+        tasks = [t for t in tasks if t["fm"].get("project") == project]
+
+    # Priority 1: Tasks in [review] -> dispatch to Antigravity
+    in_review = [t for t in tasks if t["fm"].get("status") == "review"]
+    if in_review:
+        t = in_review[0]
+        print(f"Found task in [review]: [{t['id']}] {t['fm'].get('title')}")
+        args.id = t["id"]
+        args.agent = "antigravity"
+        return cmd_dispatch(args, cfg)
+
+    # Priority 2: Tasks in [running] -> dispatch to assigned builder (opencode/Claude)
+    running = [t for t in tasks if t["fm"].get("status") == "running"]
+    if running:
+        t = running[0]
+        print(f"Found task in [running]: [{t['id']}] {t['fm'].get('title')}")
+        args.id = t["id"]
+        args.agent = t["fm"].get("agent") or "opencode"
+        return cmd_dispatch(args, cfg)
+
+    # Priority 3: Tasks in [planning] -> dispatch to Codex for debate
+    planning = [t for t in tasks if t["fm"].get("status") == "planning"]
+    if planning:
+        t = planning[0]
+        print(f"Found task in [planning]: [{t['id']}] {t['fm'].get('title')}")
+        args.id = t["id"]
+        args.agent = "codex"
+        return cmd_dispatch(args, cfg)
+
+    # Priority 4: Tasks in [backlog] -> advance to planning
+    backlog = [t for t in tasks if t["fm"].get("status") == "backlog"]
+    if backlog:
+        t = backlog[0]
+        print(f"Found task in [backlog]: [{t['id']}] {t['fm'].get('title')} -> Moving to planning")
+        t["fm"]["status"] = "planning"
+        t["fm"]["updated"] = now()
+        atomic_write(t["path"], frontmatter_block(t["fm"], TASK_FM_ORDER) + "\n" + t["body"] + "\n")
+        args.id = t["id"]
+        args.agent = "codex"
+        return cmd_dispatch(args, cfg)
+
+    print("No actionable tasks pending on the Kanban board.")
+    return 0
+
+
 # ================ KNOWLEDGE & CLAIMS COMMANDS ================
 
 def cmd_init(args, cfg=None):
-    for d in (CLAIMS_DIR, SPECS_DIR, TASKS_DIR, SESSIONS_DIR,
+    for d in (CLAIMS_DIR, SPECS_DIR, TASKS_DIR, LOGS_DIR, SESSIONS_DIR,
               CONTEXT_DIR, CONTEXT_ARCHIVE_DIR, META_DIR,
               "decisions", "projects", "experiments", "people"):
         (VAULT / d).mkdir(parents=True, exist_ok=True)
@@ -777,17 +956,18 @@ def cmd_init(args, cfg=None):
 *.tmp
 meta/search_index.db
 sessions/*.json
+tasks/logs/
 *.log
 """
     (VAULT / ".gitignore").write_text(gitignore, encoding="utf-8")
     save_config(load_config())
     readme_path = VAULT / "README.md"
     if not readme_path.exists():
-        atomic_write(readme_path, f"# Second Brain (v4.2)\n\nMulti-agent coordination hub. Vault: {VAULT}\n")
+        atomic_write(readme_path, f"# Second Brain (v4.3)\n\nMulti-agent coordination hub. Vault: {VAULT}\n")
     if not (VAULT / ".git").exists():
         subprocess.run(["git", "init"], cwd=VAULT, capture_output=True)
     reindex_all_search()
-    git_commit("init vault skeleton v4.2")
+    git_commit("init vault skeleton v4.3")
     print(f"vault initialised at {VAULT}")
     return 0
 
@@ -1140,7 +1320,7 @@ def cmd_tasks(args, cfg):
             fm = t["fm"]
             agent_str = f" [{fm.get('agent')}]" if fm.get("agent") else ""
             proj_str = f" ({fm.get('project')})" if fm.get("project") else ""
-            spec_str = f" spec:[[{fm.get('spec_id')}]]" if fm.get('spec_id') else ""
+            spec_str = f" spec:[[{fm.get('spec_id')}]]" if fm.get("spec_id") else ""
             print(f"  * {t['id']}{proj_str}{agent_str}: {fm.get('title')}{spec_str}")
     return 0
 
@@ -1417,30 +1597,35 @@ def cmd_dashboard(args, cfg):
     locks = get_active_file_locks()
 
     print("=" * 50)
-    print("         SECOND BRAIN -- DASHBOARD (v4.2)")
+    print("         SECOND BRAIN -- DASHBOARD (v4.3)")
     print("=" * 50)
     print()
 
-    # 1. Kanban Task Board Overview
     print("> KANBAN TASK BOARD")
     kanban_counts = {st: sum(1 for t in tasks if t['fm'].get('status') == st) for st in TASK_STATUSES}
     print(f"  Backlog: {kanban_counts['backlog']} | Planning: {kanban_counts['planning']} | Running: {kanban_counts['running']} | Review: {kanban_counts['review']} | Done: {kanban_counts['done']}")
 
     running_tasks = [t for t in tasks if t['fm'].get('status') == 'running']
     review_tasks = [t for t in tasks if t['fm'].get('status') == 'review']
+    planning_tasks = [t for t in tasks if t['fm'].get('status') == 'planning']
 
-    if running_tasks or review_tasks:
+    if planning_tasks:
+        for t in planning_tasks:
+            fm = t["fm"]
+            agent = f" ({fm.get('agent')})" if fm.get("agent") else ""
+            print(f"  [PLANNING]{agent} {t['id']} -> {fm.get('title')}")
+    if running_tasks:
         for t in running_tasks:
             fm = t["fm"]
             agent = f" ({fm.get('agent')})" if fm.get("agent") else ""
             print(f"  [RUNNING]{agent} {t['id']} -> {fm.get('title')}")
+    if review_tasks:
         for t in review_tasks:
             fm = t["fm"]
             agent = f" ({fm.get('agent')})" if fm.get("agent") else ""
             print(f"  [REVIEW]{agent} {t['id']} -> {fm.get('title')}")
     print()
 
-    # 2. Active Agent Sessions
     print(f"> ACTIVE SESSIONS ({len(active)})")
     if active:
         for s in active:
@@ -1454,14 +1639,12 @@ def cmd_dashboard(args, cfg):
         print("  (none)")
     print()
 
-    # 3. Active File Locks
     if locks:
         print(f"> ACTIVE FILE LEASES ({len(locks)})")
         for fpath, l in locks.items():
             print(f"  [LOCK] {fpath} -> {l['agent']} ({l['project']}) [expires in {l['remaining_mins']}m]")
         print()
 
-    # 4. Recent Handoffs
     if recent_ended:
         print(f"> RECENT SESSIONS & HANDOFFS ({len(recent_ended)})")
         for s in reversed(recent_ended):
@@ -1471,7 +1654,6 @@ def cmd_dashboard(args, cfg):
             print(f"  [done] {fm.get('agent','?')} -> {fm.get('project','') or 'unscoped'}: {fm.get('task','')}{handoff} (ended {age})")
         print()
 
-    # 5. Recent Context
     print(f"> RECENT CONTEXT ({len(recent_notes)})")
     if recent_notes:
         for n in recent_notes:
@@ -1483,7 +1665,6 @@ def cmd_dashboard(args, cfg):
         print("  (none)")
     print()
 
-    # 6. Vault Health
     l0_path = VAULT / META_DIR / L0_NAME
     l0_size = l0_path.stat().st_size if l0_path.exists() else 0
     print(f"> VAULT: {len(active_claims)} active claims, L0={l0_size}B/{L0_BUDGET}B (FTS5 active)")
@@ -1573,7 +1754,7 @@ def cmd_sweep(args, cfg):
             l0_lines.append(f"- {agent} -> {proj}: {task}{locks} ({age})")
         l0_lines.append("")
 
-    active_tasks = [t for t in all_tasks() if t["fm"].get("status") in ("running", "review")][:3]
+    active_tasks = [t for t in all_tasks() if t["fm"].get("status") in ("running", "review", "planning")][:3]
     if active_tasks:
         l0_lines.append("## Active Tasks")
         for t in active_tasks:
@@ -1627,7 +1808,7 @@ def cmd_sweep(args, cfg):
 # ================ CLI ================
 
 def main():
-    ap = argparse.ArgumentParser(description="Second Brain — multi-agent coordination hub (v4.2)")
+    ap = argparse.ArgumentParser(description="Second Brain — multi-agent coordination hub (v4.3)")
     sub = ap.add_subparsers(dest="cmd")
 
     # -- knowledge commands --
@@ -1670,7 +1851,7 @@ def main():
     p_sw = sub.add_parser("sweep")
     p_sw.add_argument("--commit", action="store_true")
 
-    # -- autonomous pipeline commands --
+    # -- autonomous pipeline & dispatch commands --
     p_cr = sub.add_parser("cycle-route")
     p_cr.add_argument("--agent", required=True)
     p_cr.add_argument("--prompt", required=True)
@@ -1679,6 +1860,15 @@ def main():
     p_cn = sub.add_parser("cycle-next")
     p_cn.add_argument("--agent", required=True)
     p_cn.add_argument("--project", default="")
+
+    p_disp = sub.add_parser("dispatch")
+    p_disp.add_argument("id")
+    p_disp.add_argument("--agent", default="")
+    p_disp.add_argument("--tab", action="store_true", help="Launch in a new Windows Terminal tab")
+
+    p_auto = sub.add_parser("auto-cycle")
+    p_auto.add_argument("--project", default="")
+    p_auto.add_argument("--tab", action="store_true", help="Launch in a new Windows Terminal tab")
 
     # -- upstream specs commands (Traycer) --
     p_spec_c = sub.add_parser("spec-create")
@@ -1780,6 +1970,7 @@ def main():
             "dispute": cmd_dispute, "promote": cmd_promote, "recall": cmd_recall,
             "status": cmd_status, "sweep": cmd_sweep, "verify": cmd_verify,
             "related": cmd_related, "cycle-route": cmd_cycle_route, "cycle-next": cmd_cycle_next,
+            "dispatch": cmd_dispatch, "auto-cycle": cmd_auto_cycle,
             "spec-create": cmd_spec_create, "specs": cmd_specs,
             "task-create": cmd_task_create, "task-move": cmd_task_move, "tasks": cmd_tasks,
             "session-start": cmd_session_start, "session-update": cmd_session_update,

@@ -1,5 +1,9 @@
-# Brain (auto-generated 2026-08-28T05:51:18Z)
+# Brain (auto-generated 2026-08-28T06:01:13Z)
 # Call brain_session_start on session begin. brain_recall for knowledge.
+
+## Active Tasks
+- [PLANNING] [codex] t-20260828-676465: Define rationale & research scope for cross-market alpha gen
+- [PLANNING] [codex] t-20260828-efea70: Build a complete OAuth2 and JWT authentication subsystem wit
 
 ## Context
 - [codex] Postgres port 5433 has schema v2 applied; connection pool max=10 (fintrack)
@@ -17,5 +21,4 @@
 - [active] Job applications: ALWAYS apply from aisathish27@gmail.com (creds in hermes .env JOB_APPLY_EMAIL/PASSWORD; never print... [[20260810-c67d9c]]
 - [active] HARD RULE (plan_debate.py): run the NVIDIA+MiniMax→gemini→deepseek debate EVERY TIME for planning/verdicts; NEVER do ... [[20260810-73c30b]]
 - [active] TITAN FX prior-window pull data quirks: dukascopy_1m_ba_prior 2021-08→2025-07 (WF-v2 Step 5 OOS); bid/ask CONTRACT on... [[20260810-6b29e8]]
-- [active] TITAN pytest resolves titan from the installed WHEEL (site-packages), NOT src/ — sync .py changes to site-packages or... [[20260810-68f2e1]]
 - ... and 27 more (run brain_recall)

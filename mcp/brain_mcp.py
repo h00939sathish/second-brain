@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-brain_mcp.py - MCP bridge exposing the second-brain to any MCP client (v4.1).
+brain_mcp.py - MCP bridge exposing the second-brain to any MCP client (v4.3).
 (opencode, Hermes, Claude Code, Antigravity, Codex, ...).
 
-Tools (26 total):
-  Autonomous Cycle: brain_cycle_route, brain_cycle_next
-  Specs & Planning: brain_spec_create, brain_specs
-  Kanban Tasks:     brain_task_create, brain_task_move, brain_tasks
-  Coordination:     brain_session_start, brain_session_update, brain_session_end,
-                    brain_sessions, brain_reserve, brain_check_files,
-                    brain_post, brain_read, brain_dashboard
-  Knowledge/Memory: brain_status, brain_recall, brain_claim, brain_supersede,
-                    brain_dispute, brain_verify, brain_related, brain_promote, brain_sweep
+Tools (28 total):
+  Autonomous Dispatch: brain_dispatch, brain_auto_cycle, brain_cycle_route, brain_cycle_next
+  Specs & Planning:    brain_spec_create, brain_specs
+  Kanban Tasks:        brain_task_create, brain_task_move, brain_tasks
+  Coordination:        brain_session_start, brain_session_update, brain_session_end,
+                       brain_sessions, brain_reserve, brain_check_files,
+                       brain_post, brain_read, brain_dashboard
+  Knowledge/Memory:    brain_status, brain_recall, brain_claim, brain_supersede,
+                       brain_dispute, brain_verify, brain_related, brain_promote, brain_sweep
 """
 import io
 import os
@@ -45,13 +45,25 @@ def _run(handler, **kwargs):
         return f"ERROR: {type(e).__name__}: {e}"
 
 
-# ================ AUTONOMOUS PIPELINE ROUTING ================
+# ================ AUTONOMOUS PIPELINE & DISPATCH ================
+
+@mcp.tool()
+def brain_dispatch(task_id: str, agent: str = "", open_tab: bool = False) -> str:
+    """Directly invoke the assigned agent CLI (Codex, opencode, Claude, AGY) for a specific task.
+    - open_tab: if True, launches in a new Windows Terminal / PowerShell tab so you can watch."""
+    return _run(engine.cmd_dispatch, id=task_id, agent=agent, tab=open_tab)
+
+
+@mcp.tool()
+def brain_auto_cycle(project: str = "", open_tab: bool = False) -> str:
+    """Inspect the live Kanban board and dispatch the highest-priority actionable task automatically."""
+    return _run(engine.cmd_auto_cycle, project=project, tab=open_tab)
+
 
 @mcp.tool()
 def brain_cycle_route(agent: str, prompt: str, project: str = "") -> str:
     """Evaluate a user request and determine whether to execute directly or activate
-    the 4-stage pipeline: Codex (Planner) -> opencode/Claude (Builder) -> Antigravity (Reviewer).
-    Call this at the start of any conversation with the user's prompt!"""
+    the 4-stage pipeline: Codex (Planner) -> opencode/Claude (Builder) -> Antigravity (Reviewer)."""
     return _run(engine.cmd_cycle_route, agent=agent, prompt=prompt, project=project)
 
 
