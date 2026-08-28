@@ -29,7 +29,7 @@ import { CreateTaskModal, DocsSupportModal } from './components/CreateTaskModal'
 
 export const App: React.FC = () => {
   // Navigation & Brand state
-  const [currentTab, setCurrentTab] = useState<NavigationTab>('telemetry');
+  const [currentTab, setCurrentTab] = useState<NavigationTab>('kanban');
   const [brandVariant, setBrandVariant] = useState<'secondBrain' | 'antigravity'>('secondBrain');
   const [daemonSeconds, setDaemonSeconds] = useState(15);
 
@@ -54,40 +54,79 @@ export const App: React.FC = () => {
   const [docsSupportType, setDocsSupportType] = useState<'docs' | 'support' | null>(null);
   const [selectedTask, setSelectedTask] = useState<KanbanTask | null>(null);
 
-  // Daemon Heartbeat timer & simulated live telemetry
+  // Live Second Brain Backend API Polling
+  useEffect(() => {
+    const fetchLiveVaultData = async () => {
+      try {
+        const [tasksRes, leasesRes, handoffsRes, contextRes, logsRes, graphRes] = await Promise.all([
+          fetch('/api/tasks').catch(() => null),
+          fetch('/api/leases').catch(() => null),
+          fetch('/api/handoffs').catch(() => null),
+          fetch('/api/context').catch(() => null),
+          fetch('/api/logs').catch(() => null),
+          fetch('/api/graph').catch(() => null),
+        ]);
+
+        if (tasksRes && tasksRes.ok) {
+          const tasksData = await tasksRes.json();
+          if (Array.isArray(tasksData) && tasksData.length > 0) {
+            setKanbanTasks(tasksData);
+          }
+        }
+
+        if (leasesRes && leasesRes.ok) {
+          const leasesData = await leasesRes.json();
+          if (Array.isArray(leasesData)) {
+            setFileLeases(leasesData);
+          }
+        }
+
+        if (handoffsRes && handoffsRes.ok) {
+          const handoffsData = await handoffsRes.json();
+          if (Array.isArray(handoffsData) && handoffsData.length > 0) {
+            setHandoffs(handoffsData);
+          }
+        }
+
+        if (contextRes && contextRes.ok) {
+          const contextData = await contextRes.json();
+          if (Array.isArray(contextData) && contextData.length > 0) {
+            setContextMessages(contextData);
+          }
+        }
+
+        if (logsRes && logsRes.ok) {
+          const logsData = await logsRes.json();
+          if (Array.isArray(logsData) && logsData.length > 0) {
+            setLogs((prev) => {
+              const existingIds = new Set(prev.map((l) => l.id));
+              const newLogs = logsData.filter((l: LogEntry) => !existingIds.has(l.id));
+              return [...prev, ...newLogs];
+            });
+          }
+        }
+
+        if (graphRes && graphRes.ok) {
+          const graphData = await graphRes.json();
+          if (Array.isArray(graphData) && graphData.length > 0) {
+            setGraphNodes(graphData);
+          }
+        }
+      } catch (err) {
+        // Fall back gracefully to initial demo data
+      }
+    };
+
+    fetchLiveVaultData();
+    const interval = setInterval(fetchLiveVaultData, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Daemon Heartbeat timer
   useEffect(() => {
     const interval = setInterval(() => {
       setDaemonSeconds((s) => s + 1);
-
-      // Random background daemon ping in logs occasionally
-      if (Math.random() > 0.7) {
-        const now = new Date();
-        const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(
-          now.getMinutes()
-        ).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}.${String(
-          now.getMilliseconds()
-        ).padStart(3, '0')}`;
-
-        const events = [
-          { tag: '[Codex-A]', msg: 'Cache vector verified (0.34ms).', color: '#22d3ee', lvl: 'OK' as const },
-          { tag: '[Claude-S]', msg: 'AST structural tokens synced.', color: '#ec6a06', lvl: 'INFO' as const },
-          { tag: '[Sys-Mon]', msg: 'Memory garbage collection reclaimed 84MB.', color: '#4cd7f6', lvl: 'SYS' as const },
-        ];
-        const ev = events[Math.floor(Math.random() * events.length)];
-
-        setLogs((prev) => [
-          ...prev,
-          {
-            id: `log-auto-${Date.now()}`,
-            timestamp: timeStr,
-            level: ev.lvl,
-            tag: ev.tag,
-            sourceColor: ev.color,
-            message: ev.msg,
-          },
-        ]);
-      }
-    }, 3000);
+    }, 1000);
 
     return () => clearInterval(interval);
   }, []);
@@ -132,8 +171,28 @@ export const App: React.FC = () => {
     ]);
   };
 
-  const handleAddTask = (newTask: KanbanTask) => {
+  const handleAddTask = async (newTask: KanbanTask) => {
     setKanbanTasks((prev) => [newTask, ...prev]);
+
+    // Send task creation to backend
+    try {
+      await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: newTask.title,
+          project: newTask.tags?.[0] || 'Default',
+          spec_id: newTask.specLink || '',
+          agent: newTask.assignee?.name?.toLowerCase().includes('codex') ? 'codex' : 'opencode',
+        }),
+      });
+    } catch (e) {
+      console.warn('Backend offline, using local state');
+    }
+  };
+
+  const handleUpdateTasks = async (newTasks: KanbanTask[]) => {
+    setKanbanTasks(newTasks);
   };
 
   return (
@@ -173,7 +232,7 @@ export const App: React.FC = () => {
           {currentTab === 'kanban' && (
             <KanbanBoardView
               tasks={kanbanTasks}
-              onUpdateTasks={setKanbanTasks}
+              onUpdateTasks={handleUpdateTasks}
               fileLeases={fileLeases}
               handoffs={handoffs}
               contextMessages={contextMessages}
@@ -202,44 +261,13 @@ export const App: React.FC = () => {
 
           {currentTab === 'network' && (
             <NetworkLoadBalancerView
-              daemonLoads={daemonLoads}
               queueTasks={queueTasks}
-              onOpenDeployModal={() => setIsDeployOpen(true)}
+              daemonLoads={daemonLoads}
+              onDeployClick={() => setIsDeployOpen(true)}
             />
           )}
         </main>
       </div>
-
-      {/* Mobile Bottom Navigation Bar */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-[#050505]/95 backdrop-blur-md border-t border-white/10 z-40 flex items-center justify-around px-2">
-        {[
-          { tab: 'telemetry' as NavigationTab, icon: 'monitoring', label: 'Telemetry' },
-          { tab: 'kanban' as NavigationTab, icon: 'view_kanban', label: 'Kanban' },
-          { tab: 'graph' as NavigationTab, icon: 'hub', label: 'Graph' },
-          { tab: 'logs' as NavigationTab, icon: 'terminal', label: 'Logs' },
-          { tab: 'specs' as NavigationTab, icon: 'description', label: 'Specs' },
-          { tab: 'network' as NavigationTab, icon: 'device_hub', label: 'Network' },
-        ].map((item) => {
-          const isActive = currentTab === item.tab;
-          return (
-            <button
-              key={item.tab}
-              onClick={() => setCurrentTab(item.tab)}
-              className={`flex flex-col items-center justify-center flex-1 py-1 transition-colors ${
-                isActive ? 'text-[#C9A86A]' : 'text-white/40 hover:text-white/80'
-              }`}
-            >
-              <span 
-                className="material-symbols-outlined text-[20px]"
-                style={{ fontVariationSettings: isActive ? "'FILL' 1" : "'FILL' 0" }}
-              >
-                {item.icon}
-              </span>
-              <span className="font-code-sm text-[9px] uppercase tracking-wider mt-0.5">{item.label}</span>
-            </button>
-          );
-        })}
-      </nav>
 
       {/* Modals & Drawers */}
       <DeployAgentModal
@@ -251,16 +279,18 @@ export const App: React.FC = () => {
       <SearchModal
         isOpen={isSearchOpen}
         onClose={() => setIsSearchOpen(false)}
-        onNavigate={(tab) => setCurrentTab(tab)}
+        tasks={kanbanTasks}
+        onSelectTask={(task) => {
+          setSelectedTask(task);
+          setIsSearchOpen(false);
+        }}
       />
 
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         brandVariant={brandVariant}
-        onToggleBrand={() =>
-          setBrandVariant((b) => (b === 'secondBrain' ? 'antigravity' : 'secondBrain'))
-        }
+        onBrandChange={setBrandVariant}
       />
 
       <NotificationsDrawer
@@ -272,12 +302,24 @@ export const App: React.FC = () => {
         task={selectedTask}
         isOpen={!!selectedTask}
         onClose={() => setSelectedTask(null)}
+        onStatusChange={(newStatus) => {
+          if (selectedTask) {
+            const updated = { ...selectedTask, status: newStatus };
+            setKanbanTasks((prev) => prev.map((t) => (t.id === selectedTask.id ? updated : t)));
+            setSelectedTask(updated);
+            fetch(`/api/tasks/${selectedTask.id}/move`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ status: newStatus }),
+            }).catch(() => null);
+          }
+        }}
       />
 
       <CreateTaskModal
         isOpen={isCreateTaskOpen}
         onClose={() => setIsCreateTaskOpen(false)}
-        onAddTask={handleAddTask}
+        onCreated={handleAddTask}
       />
 
       <DocsSupportModal
@@ -287,4 +329,6 @@ export const App: React.FC = () => {
     </div>
   );
 };
+
 export default App;
+

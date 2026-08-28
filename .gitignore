@@ -9,6 +9,9 @@ __pycache__/
 .venv/
 mcp/.venv/
 
+# Local MCP configs containing API keys
+.mcp.json
+
 # Frontend dependencies & build artifacts
 node_modules/
 build/

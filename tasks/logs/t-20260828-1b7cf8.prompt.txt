@@ -1,0 +1,48 @@
+You have been dispatched by the Second Brain Autonomous Pipeline.
+
+Task ID: t-20260828-1b7cf8
+Project: Project TITAN
+Task Title: Draft proposed ADR-032 and cross-market alpha research charter
+Current Status: [running]
+
+Linked Upstream Spec [[spec-20260828-b91675]]:
+# Spec: Cross-Market Alpha Research Admission and Scope
+
+## Overview
+Purpose: establish why TITAN may investigate cross-market alpha after terminal FX OHLCV, equities-factor, and crypto discovery results, while preventing infra-before-alpha.
+
+Invariants:
+- The terminal findings remain absorbing for their registered hypothesis IDs and signal families. Cross-market work cannot repackage, invert, retune, relax costs for, or extend those failures.
+- 'Cross-market alpha' means a measurable, causal, cross-instrument transfer or dislocation that is not a directional liquid-OHLCV pattern. It is not a portfolio diversification claim, correlation mining exercise, or execution program.
+- Research authority is read-only. No credentials, adapters, TradeIntent, portfolio/risk changes, paper accounts, order paths, PromotionCertificate changes, or live-capital authority.
+- Data is acquired before hypothesis evaluation and must include provider/licence, PIT availability time, UTC timestamps, symbol/contract mapping, corrections, survivorship treatment, checksums, and retention policy. Absence of an admissible data contract is a terminal pre-experiment rejection, not an implementation request.
+- An admissible hypothesis has a distinct ID, causal mechanism, counter-mechanism, exact eligible instruments, decision timestamp, lead/lag convention, IS/OOS seal, random and economically relevant controls, capacity bound, immutable cost model, stress cases, and quantitative pass/fail gates declared before OOS read.
+- Simulation uses actual executable instruments and quote-sided/top-of-book fills when available. It separately attributes gross mechanism return, spread, fees, impact, financing/borrow, FX conversion, data latency, legging/hedge failures, and capacity. Bar-close constant-bps work is exploratory only and never qualifying.
+- A failure is permanently preserved and classified as mechanism_failure or execution_constrained_rejection, with evidence and confidence; a new mechanism requires a new hypothesis ID.
+- A positive research result is only a candidate for a later shadow-only proposal. It does not authorize paper or live trading.
+
+Admission scope:
+1) Start with a data-availability and causal-mechanism screen, not platform construction. Candidates must use information absent from the terminal liquid-OHLCV search: timestamped macro/fundamental surprise data, synchronized cross-venue/cash-futures/ETF quote data, or validated participant/flow/order-book data.
+2) Prioritize a single hypothesis only after the screen: CM-001 may test scheduled, timestamped macro-surprise transmission across liquid US ETFs, but only if licensed consensus, release timestamps, revision/vintage fields, and synchronized executable prices meet the data contract. This is event-driven relative response, not raw directional forecast.
+3) Cash-futures/ETF dislocation and market-structure/flow hypotheses are deferred unless their own data quality, licenses, executable-price, capacity, and venue-risk reviews pass. Crypto remains research-only under ADR-029 and CRYPTO-001..003 stay closed; CRYPTO-004 remains its independently sealed mechanism, not a substitute for this program.
+
+Acceptance evidence for the planning artifact: proposed ADR and charter name owners/boundary/interfaces/failure modes; contain a hypothesis exclusion registry; define pre-data and post-data gates, rollback and monitoring; cite terminal records; make no alpha or readiness claim; have no execution imports or code changes. Council acceptance is required before any implementation task.
+
+## Execution Phases
+- [ ] **Phase 1:** 1. Draft ADR-032 (Proposed) and a research charter defining research-only authority
+- [ ] **Phase 2:** exclusion list
+- [ ] **Phase 3:** data contracts
+- [ ] **Phase 4:** and immutable evidence. 2. Council ratifies or rejects the ADR; only after acceptance may data-source due diligence proceed. 3. For each admitted independent hypothesis
+- [ ] **Phase 5:** create a separate sealed preregistration
+- [ ] **Phase 6:** immutable manifest
+- [ ] **Phase 7:** canonical simulation evidence bundle
+- [ ] **Phase 8:** and terminal result. No execution/paper/live work is in scope.
+
+
+Protocol Instructions for CLAUDE:
+1. Use second-brain MCP tools (brain_session_start, brain_check_files, brain_recall).
+2. If you are Codex (Planner): Draft invariants and approve spec/tasks. Do NOT write repetitive code.
+3. If you are opencode/Claude (Builder): Reserve target files (brain_reserve), implement code phase, run tests, and hand off to Antigravity (brain_session_end with target_agent="antigravity", brain_task_move to "review").
+4. If you are Antigravity (Reviewer): Audit diffs against spec, run tests, post report (brain_post), and move task to "done".
+
+Begin execution now.
