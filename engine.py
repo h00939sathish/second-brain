@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-second_brain.py - Multi-agent coordination hub + autonomous execution pipeline (v4.1).
+second_brain.py - Multi-agent coordination hub + autonomous execution pipeline (v4.2).
 
 Tiered memory:
   L0 = compact pointers ALWAYS injected into agent sessions (~2.2KB budget)
@@ -9,13 +9,11 @@ Tiered memory:
   L2 = raw session transcripts (opaque, never read/written here)
 
 Autonomous Role Pipeline:
-  Codex            = PLANNER  (Upstream specs, phased task breakdown, sign-off)
-  opencode/Claude  = BUILDER  (Task execution, file reservations, phased build)
-  Antigravity CLI  = REVIEWER (Diff audit, test verification, report to Codex)
+  GPT 5.6 (Codex)          = LEAD ARCHITECT & ARBITER (Dense invariants, spec drafting, signoff)
+  Gemini 3.7 Flash (AGY)   = CONTEXT ANALYST & FINAL REVIEWER (1M context critique, diff audit, test verification)
+  opencode / Claude Code   = CORE BUILDERS & HEAVY LIFTERS (Phased code edits, file reservations, unit tests)
 
-Workload Routing:
-  Trivial Tasks    -> Direct execution by current agent (zero overhead)
-  Complex Features -> Auto-activated 4-stage pipeline across specialized agents
+* Rule: Neither Codex nor AGY performs repetitive heavy lifting; heavy code generation is offloaded to Builders.
 """
 import argparse
 import json
@@ -617,7 +615,6 @@ def git_commit(msg):
 # ================ AUTONOMOUS PIPELINE ROUTER ================
 
 def estimate_workload_complexity(prompt: str, cfg: dict):
-    """Classifies if a prompt is trivial or complex enough to require the multi-agent pipeline."""
     p_cfg = cfg.get("pipeline", {})
     keywords = p_cfg.get("complex_keywords", [
         "refactor", "migrate", "architecture", "implement", "build",
@@ -659,29 +656,31 @@ def cmd_cycle_route(args, cfg):
         return 0
 
     print("[ROUTE: AUTONOMOUS 4-STAGE PIPELINE ACTIVATED]")
-    print(f"Workload is complex (score={score}). Enforcing: Codex (Planner) -> opencode/Claude (Builder) -> Antigravity (Reviewer).")
+    print(f"Workload is complex (score={score}).")
+    print("Enforcing: GPT 5.6 (Codex) <-> Gemini 3.7 (AGY) Planning Debate -> opencode/Claude (Builders) -> Gemini 3.7 (AGY) Final Review.")
+    print("* Rule: Neither Codex nor AGY performs heavy file generation; heavy lifting is offloaded to Builders.")
     print()
 
-    if role == "planner":  # Codex
-        print("YOUR ROLE: PLANNER (Codex)")
+    if role == "planner":  # Codex (GPT 5.6)
+        print("YOUR ROLE: LEAD ARCHITECT & ARBITER (Codex / GPT 5.6)")
         print("Actions required:")
-        print(f"  1. Draft upstream architecture spec: brain_spec_create(project='{project}', title='...', spec='...', phases='...')")
-        print(f"  2. Decompose into Kanban tasks: brain_task_create(project='{project}', title='...', agent='opencode'|'claude')")
-        print("  3. Advance task to [planning] or [running] for builders.")
+        print(f"  1. Formulate core architectural invariants & constraints (keep concise to conserve tokens).")
+        print(f"  2. Incorporate Gemini 3.7 Flash repo context & critique into the spec.")
+        print(f"  3. Save spec: brain_spec_create(project='{project}', title='...', spec='...', phases='...')")
+        print(f"  4. Decompose into Kanban tasks: brain_task_create(project='{project}', title='...', agent='opencode'|'claude')")
+        print(f"  5. Advance task to [running] for builders. (DO NOT write code directly).")
 
     elif role == "builder":  # opencode / Claude Code
-        print(f"YOUR ROLE: BUILDER ({agent})")
-        # Check if an existing spec/task is ready
+        print(f"YOUR ROLE: CORE BUILDER & HEAVY LIFTER ({agent})")
         tasks = [t for t in all_tasks() if t["fm"].get("status") in ("planning", "running")]
         if tasks:
             t = tasks[0]
             print(f"Active Task Available: [{t['id']}] {t['fm'].get('title')}")
             print(f"  1. Claim task to running: brain_task_move(task_id='{t['id']}', status='running')")
             print(f"  2. Start session & reserve files: brain_session_start(agent='{agent}', project='{project}', task_id='{t['id']}', files='...', lease_mins=30)")
-            print("  3. Implement code phase & run tests.")
+            print("  3. Implement code phase & run unit tests.")
             print(f"  4. End session with handoff to Antigravity: brain_session_end(..., target_agent='antigravity') and brain_task_move(task_id='{t['id']}', status='review').")
         else:
-            # Create a task in planning for Codex
             ts = now()
             tid = "t-" + datetime.now().strftime("%Y%m%d") + "-" + uuid.uuid4().hex[:6]
             title = prompt.split("\n")[0][:80]
@@ -697,32 +696,31 @@ def cmd_cycle_route(args, cfg):
                 "created": ts,
                 "updated": ts,
             }
-            body = f"# Task: {title}\n\nUser Request: {prompt}\n\n## Activity Log\n- [{ts[11:16]}] Created by {agent} (routed to Codex for planning)\n"
+            body = f"# Task: {title}\n\nUser Request: {prompt}\n\n## Activity Log\n- [{ts[11:16]}] Created by {agent} (routed to Codex & AGY for planning debate)\n"
             atomic_write(task_path(tid), frontmatter_block(tfm, TASK_FM_ORDER) + "\n" + body)
             reindex_all_search()
-            git_commit(f"task {tid}: created by {agent} for codex planning")
-            print(f"Created Task [{tid}] in [planning] assigned to Codex.")
-            print("Next step: Codex must create the architectural spec before code implementation.")
+            git_commit(f"task {tid}: created by {agent} for planning debate")
+            print(f"Created Task [{tid}] in [planning] assigned to Codex/AGY.")
+            print("Next step: Codex & AGY must debate and finalize the architectural spec before code implementation.")
 
-    elif role == "reviewer":  # Antigravity
-        print("YOUR ROLE: REVIEWER (Antigravity CLI)")
+    elif role == "reviewer":  # Antigravity (Gemini 3.7 Flash)
+        print("YOUR ROLE: CONTEXT ANALYST & FINAL REVIEWER (Antigravity CLI / Gemini 3.7 Flash)")
         review_tasks = [t for t in all_tasks() if t["fm"].get("status") == "review"]
         if review_tasks:
             t = review_tasks[0]
-            print(f"Task Ready for Review: [{t['id']}] {t['fm'].get('title')}")
+            print(f"Task Ready for Final Review: [{t['id']}] {t['fm'].get('title')}")
             print("Actions required:")
-            print("  1. Audit git diffs vs upstream spec.")
-            print("  2. Run test suites (pytest/cargo/npm).")
+            print("  1. Ingest full repo & audit git diffs vs upstream spec (zero drift).")
+            print("  2. Run comprehensive test suites (pytest/cargo/npm).")
             print(f"  3. Post verification report: brain_post(text='Verification report...', tags='review,report')")
             print(f"  4. Mark task done: brain_task_move(task_id='{t['id']}', status='done')")
         else:
-            print("No tasks currently awaiting review in [review] column.")
+            print("No tasks currently awaiting review in [review] column. If planning, critique Codex's spec using full repo context.")
 
     return 0
 
 
 def cmd_cycle_next(args, cfg):
-    """Inspects the live Kanban board and reports the exact next action for an agent."""
     agent = (args.agent or "unknown").lower()
     project = args.project or ""
     role = AGENT_ROLES.get(agent, "builder")
@@ -733,35 +731,34 @@ def cmd_cycle_next(args, cfg):
 
     print(f"== NEXT ACTION FOR {agent.upper()} (role: {role}) ==")
 
-    if role == "planner":  # Codex
+    if role == "planner":  # Codex (GPT 5.6)
         pending_plan = [t for t in tasks if t["fm"].get("status") in ("backlog", "planning")]
-        review_done = [t for t in tasks if t["fm"].get("status") == "done"][-3:]
         if pending_plan:
             t = pending_plan[0]
-            print(f"ACTION REQUIRED: Plan task [{t['id']}] {t['fm'].get('title')}")
-            print(f"  -> Run brain_spec_create and break down phases for builder.")
+            print(f"ACTION REQUIRED: Plan & debate task [{t['id']}] {t['fm'].get('title')}")
+            print(f"  -> Formulate invariants, synthesize with Gemini 3.7 repo critique, and create spec for builders.")
         else:
-            print("All tasks planned. Monitoring pipeline.")
+            print("All tasks planned. Monitoring builder progress.")
 
     elif role == "builder":  # opencode / Claude
         running = [t for t in tasks if t["fm"].get("status") == "running"]
         planning = [t for t in tasks if t["fm"].get("status") == "planning"]
         if running:
             t = running[0]
-            print(f"ACTION REQUIRED: Execute Task [{t['id']}] {t['fm'].get('title')}")
-            print("  -> Claim file lease, implement code phase, and hand off to Antigravity for review.")
+            print(f"ACTION REQUIRED: Heavy Lifting on Task [{t['id']}] {t['fm'].get('title')}")
+            print("  -> Claim file lease, implement code phase, run tests, and hand off to Antigravity for review.")
         elif planning:
             t = planning[0]
-            print(f"WAITING: Task [{t['id']}] is in [planning]. Awaiting Codex spec.")
+            print(f"WAITING: Task [{t['id']}] is in [planning]. Awaiting Codex & AGY spec debate.")
         else:
             print("No active build tasks in [running]. Check backlog or request new feature.")
 
-    elif role == "reviewer":  # Antigravity
+    elif role == "reviewer":  # Antigravity (Gemini 3.7 Flash)
         in_review = [t for t in tasks if t["fm"].get("status") == "review"]
         if in_review:
             t = in_review[0]
-            print(f"ACTION REQUIRED: Review Task [{t['id']}] {t['fm'].get('title')}")
-            print("  -> Audit diffs vs spec, run tests, post report, and mark done.")
+            print(f"ACTION REQUIRED: Final Review of Task [{t['id']}] {t['fm'].get('title')}")
+            print("  -> Audit diffs vs spec, run test suites, post report, and mark done.")
         else:
             print("No tasks pending review in [review].")
 
@@ -786,11 +783,11 @@ sessions/*.json
     save_config(load_config())
     readme_path = VAULT / "README.md"
     if not readme_path.exists():
-        atomic_write(readme_path, f"# Second Brain (v4.1)\n\nMulti-agent coordination hub. Vault: {VAULT}\n")
+        atomic_write(readme_path, f"# Second Brain (v4.2)\n\nMulti-agent coordination hub. Vault: {VAULT}\n")
     if not (VAULT / ".git").exists():
         subprocess.run(["git", "init"], cwd=VAULT, capture_output=True)
     reindex_all_search()
-    git_commit("init vault skeleton v4.1")
+    git_commit("init vault skeleton v4.2")
     print(f"vault initialised at {VAULT}")
     return 0
 
@@ -1143,7 +1140,7 @@ def cmd_tasks(args, cfg):
             fm = t["fm"]
             agent_str = f" [{fm.get('agent')}]" if fm.get("agent") else ""
             proj_str = f" ({fm.get('project')})" if fm.get("project") else ""
-            spec_str = f" spec:[[{fm.get('spec_id')}]]" if fm.get("spec_id") else ""
+            spec_str = f" spec:[[{fm.get('spec_id')}]]" if fm.get('spec_id') else ""
             print(f"  * {t['id']}{proj_str}{agent_str}: {fm.get('title')}{spec_str}")
     return 0
 
@@ -1419,9 +1416,9 @@ def cmd_dashboard(args, cfg):
     active_claims = [c for c in claims if c["fm"].get("status", "active") == "active"]
     locks = get_active_file_locks()
 
-    print("=" * 48)
-    print("         SECOND BRAIN -- DASHBOARD (v4.1)")
-    print("=" * 48)
+    print("=" * 50)
+    print("         SECOND BRAIN -- DASHBOARD (v4.2)")
+    print("=" * 50)
     print()
 
     # 1. Kanban Task Board Overview
@@ -1630,7 +1627,7 @@ def cmd_sweep(args, cfg):
 # ================ CLI ================
 
 def main():
-    ap = argparse.ArgumentParser(description="Second Brain — multi-agent coordination hub (v4.1)")
+    ap = argparse.ArgumentParser(description="Second Brain — multi-agent coordination hub (v4.2)")
     sub = ap.add_subparsers(dest="cmd")
 
     # -- knowledge commands --
