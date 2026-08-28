@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { KanbanTask } from '../types';
 
 interface CreateTaskModalProps {
@@ -14,17 +14,37 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
 }) => {
   const [title, setTitle] = useState('');
   const [daemon, setDaemon] = useState<'Cx' | 'op' | 'Cl' | 'Ag'>('Cx');
-  const [specLink, setSpecLink] = useState('spec-01');
-  const [tag, setTag] = useState('TITAN');
+  const [specLink, setSpecLink] = useState('');
+  const [tag, setTag] = useState('Project TITAN');
   const [description, setDescription] = useState('');
+  const [availableSpecs, setAvailableSpecs] = useState<{ id: string; title: string; project: string }[]>([]);
+
+  useEffect(() => {
+    if (isOpen) {
+      fetch('/api/specs')
+        .then((res) => res.json())
+        .then((data) => {
+          if (Array.isArray(data)) {
+            setAvailableSpecs(data);
+            if (data.length > 0 && !specLink) {
+              setSpecLink(data[0].id);
+              if (data[0].project) {
+                setTag(data[0].project);
+              }
+            }
+          }
+        })
+        .catch(() => null);
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
   const daemonMap = {
-    Cx: { code: 'Cx', name: 'Codex', color: '#22d3ee' },
-    op: { code: 'op', name: 'opencode', color: '#10b981' },
-    Cl: { code: 'Cl', name: 'Claude', color: '#ec6a06' },
-    Ag: { code: 'Ag', name: 'Antigravity', color: '#d0bcff' },
+    Cx: { code: 'Cx', name: 'Codex (Planner)', color: '#22d3ee' },
+    op: { code: 'op', name: 'opencode (Builder)', color: '#10b981' },
+    Cl: { code: 'Cl', name: 'Claude (Builder)', color: '#ec6a06' },
+    Ag: { code: 'Ag', name: 'Antigravity (Reviewer)', color: '#d0bcff' },
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -34,11 +54,11 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
     const newTask: KanbanTask = {
       id: `t-${Date.now().toString().slice(-8)}`,
       title,
-      status: 'planning',
+      status: 'backlog',
       assignee: daemonMap[daemon],
-      uptime: 'Just started',
+      uptime: 'Just created',
       tags: [tag],
-      specLink,
+      specLink: specLink || undefined,
       description,
       tokenCost: 0.012,
       createdAt: new Date().toISOString(),
@@ -87,10 +107,10 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
                 onChange={(e) => setDaemon(e.target.value as any)}
                 className="w-full bg-[#161616] border border-white/10 rounded-2xl p-3 text-white focus:outline-none focus:border-[#C9A86A] transition-colors"
               >
-                <option value="Cx">Codex (Cx)</option>
-                <option value="op">opencode (op)</option>
-                <option value="Cl">Claude (Cl)</option>
-                <option value="Ag">Antigravity (Ag)</option>
+                <option value="Cx">Codex (Planner)</option>
+                <option value="op">opencode (Builder)</option>
+                <option value="Cl">Claude (Builder)</option>
+                <option value="Ag">Antigravity (Reviewer)</option>
               </select>
             </div>
 
@@ -98,12 +118,19 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
               <label className="block text-white/60 mb-1.5 font-medium">Spec Link</label>
               <select
                 value={specLink}
-                onChange={(e) => setSpecLink(e.target.value)}
+                onChange={(e) => {
+                  setSpecLink(e.target.value);
+                  const found = availableSpecs.find((s) => s.id === e.target.value);
+                  if (found && found.project) setTag(found.project);
+                }}
                 className="w-full bg-[#161616] border border-white/10 rounded-2xl p-3 text-white focus:outline-none focus:border-[#C9A86A] transition-colors"
               >
-                <option value="spec-01">SPEC-01: Engine Sync</option>
-                <option value="spec-02">SPEC-02: Unified UI Kit</option>
-                <option value="spec-03">SPEC-03: Vault Encryption</option>
+                <option value="">None / Standalone</option>
+                {availableSpecs.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.id}: {s.title.slice(0, 24)}...
+                  </option>
+                ))}
               </select>
             </div>
           </div>

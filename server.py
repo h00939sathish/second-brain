@@ -4,6 +4,7 @@
 server.py - Second Brain Mission Control Backend API Server (v1.0).
 Zero-dependency HTTP server bridging the React/Vite dashboard directly to engine.py.
 """
+import hashlib
 import json
 import os
 import sys
@@ -37,6 +38,8 @@ def get_agent_meta(agent_str):
 
 
 class SecondBrainHandler(SimpleHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"
+
     def end_headers(self):
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE")
@@ -268,8 +271,9 @@ class SecondBrainHandler(SimpleHTTPRequestHandler):
                         elif "DISPATCH" in line or "COMPLETED" in line:
                             level = "OK"
 
+                        log_id = f"log-{hashlib.md5(f'{lf.stem}:{line[:80]}'.encode('utf-8')).hexdigest()[:12]}"
                         log_entries.append({
-                            "id": f"log-{abs(hash(line))}",
+                            "id": log_id,
                             "timestamp": engine.now()[11:19],
                             "level": level,
                             "tag": f"[{lf.stem}]",
@@ -332,7 +336,8 @@ class SecondBrainHandler(SimpleHTTPRequestHandler):
                 cfg = engine.load_config()
                 sessions = engine.all_sessions()
                 for s in sessions:
-                    if s["fm"].get("status") == "active":
+                    # Scope termination: only end sessions specifically working on this task
+                    if s["fm"].get("status") == "active" and s["fm"].get("task_id") == tid:
                         s_args = SimpleNamespace(id=s["id"], target="", branch="", summary="Terminated by Operator")
                         engine.cmd_session_end(s_args, cfg)
                 args = SimpleNamespace(id=tid, status="done", agent="Operator", notes="Terminated by Operator")

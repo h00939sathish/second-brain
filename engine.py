@@ -146,45 +146,63 @@ class FileLock:
         self.path = path
         self.timeout = timeout
         self._f = None
+        self._locked = False
 
     def __enter__(self):
-        self._f = open(self.path, "a+", encoding="utf-8")
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        # Ensure file exists and has non-zero length for OS lock
+        if not self.path.exists() or self.path.stat().st_size == 0:
+            try:
+                with open(self.path, "wb") as init_f:
+                    init_f.write(b"0")
+            except Exception:
+                pass
+
+        self._f = open(self.path, "r+b")
         start = time.time()
-        if os.name == "nt":
-            import msvcrt
-            self._f.seek(0)
-            while True:
-                try:
+        while True:
+            try:
+                if os.name == "nt":
+                    import msvcrt
+                    self._f.seek(0)
                     msvcrt.locking(self._f.fileno(), msvcrt.LK_NBLCK, 1)
-                    break
-                except (OSError, IOError):
-                    if time.time() - start > self.timeout:
-                        break
-                    time.sleep(0.05)
-        else:
-            import fcntl
-            while True:
-                try:
+                else:
+                    import fcntl
                     fcntl.flock(self._f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-                    break
-                except (OSError, IOError):
-                    if time.time() - start > self.timeout:
-                        break
-                    time.sleep(0.05)
+                self._locked = True
+                break
+            except (OSError, IOError):
+                if time.time() - start > self.timeout:
+                    if self._f:
+                        try:
+                            self._f.close()
+                        except Exception:
+                            pass
+                        self._f = None
+                    raise TimeoutError(f"Could not acquire lock on {self.path} within {self.timeout}s")
+                time.sleep(0.05)
         return self
 
     def __exit__(self, *a):
-        try:
-            if os.name == "nt":
-                import msvcrt
-                self._f.seek(0)
-                msvcrt.locking(self._f.fileno(), msvcrt.LK_UNLCK, 1)
-            else:
-                import fcntl
-                fcntl.flock(self._f.fileno(), fcntl.LOCK_UN)
-        except (OSError, IOError):
-            pass
-        self._f.close()
+        if self._locked and self._f:
+            try:
+                if os.name == "nt":
+                    import msvcrt
+                    self._f.seek(0)
+                    msvcrt.locking(self._f.fileno(), msvcrt.LK_UNLCK, 1)
+                else:
+                    import fcntl
+                    fcntl.flock(self._f.fileno(), fcntl.LOCK_UN)
+            except (OSError, IOError):
+                pass
+            finally:
+                self._locked = False
+        if self._f:
+            try:
+                self._f.close()
+            except Exception:
+                pass
+            self._f = None
 
 
 

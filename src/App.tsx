@@ -81,7 +81,7 @@ export const App: React.FC = () => {
 
         if (tasksRes && tasksRes.ok) {
           const tasksData = await tasksRes.json();
-          if (Array.isArray(tasksData) && tasksData.length > 0) {
+          if (Array.isArray(tasksData)) {
             setKanbanTasks(tasksData);
           }
         }
@@ -95,32 +95,33 @@ export const App: React.FC = () => {
 
         if (handoffsRes && handoffsRes.ok) {
           const handoffsData = await handoffsRes.json();
-          if (Array.isArray(handoffsData) && handoffsData.length > 0) {
+          if (Array.isArray(handoffsData)) {
             setHandoffs(handoffsData);
           }
         }
 
         if (contextRes && contextRes.ok) {
           const contextData = await contextRes.json();
-          if (Array.isArray(contextData) && contextData.length > 0) {
+          if (Array.isArray(contextData)) {
             setContextMessages(contextData);
           }
         }
 
         if (logsRes && logsRes.ok) {
           const logsData = await logsRes.json();
-          if (Array.isArray(logsData) && logsData.length > 0) {
+          if (Array.isArray(logsData)) {
             setLogs((prev) => {
               const existingIds = new Set(prev.map((l) => l.id));
               const newLogs = logsData.filter((l: LogEntry) => !existingIds.has(l.id));
-              return [...prev, ...newLogs];
+              const merged = [...prev, ...newLogs];
+              return merged.length > 500 ? merged.slice(-500) : merged;
             });
           }
         }
 
         if (graphRes && graphRes.ok) {
           const graphData = await graphRes.json();
-          if (Array.isArray(graphData) && graphData.length > 0) {
+          if (Array.isArray(graphData)) {
             setGraphNodes(graphData);
           }
         }
@@ -170,21 +171,31 @@ export const App: React.FC = () => {
       now.getMinutes()
     ).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}.000`;
 
-    setLogs((prev) => [
-      ...prev,
-      {
-        id: `deploy-${Date.now()}`,
-        timestamp: timeStr,
-        level: 'OK',
-        tag: '[Deployer]',
-        sourceColor: '#10b981',
-        message: `Agent ${agent.name} (${agent.model}) spawned successfully with ${agent.threadLimit} threads.`,
-      },
-    ]);
+    setLogs((prev) => {
+      const nextLogs: LogEntry[] = [
+        ...prev,
+        {
+          id: `deploy-${Date.now()}`,
+          timestamp: timeStr,
+          level: 'OK',
+          tag: '[Deployer]',
+          sourceColor: '#10b981',
+          message: `Agent ${agent.name} (${agent.model}) spawned successfully with ${agent.threadLimit} threads.`,
+        },
+      ];
+      return nextLogs.length > 500 ? nextLogs.slice(-500) : nextLogs;
+    });
   };
 
   const handleAddTask = async (newTask: KanbanTask) => {
     setKanbanTasks((prev) => [newTask, ...prev]);
+
+    const assigneeStr = (newTask.assignee?.name || '').toLowerCase();
+    let agentId = 'opencode';
+    if (assigneeStr.includes('codex')) agentId = 'codex';
+    else if (assigneeStr.includes('claude')) agentId = 'claude';
+    else if (assigneeStr.includes('antigravity') || assigneeStr.includes('agy')) agentId = 'antigravity';
+    else if (assigneeStr.includes('hermes')) agentId = 'hermes';
 
     try {
       await fetch('/api/tasks', {
@@ -194,7 +205,7 @@ export const App: React.FC = () => {
           title: newTask.title,
           project: newTask.tags?.[0] || 'Default',
           spec_id: newTask.specLink || '',
-          agent: newTask.assignee?.name?.toLowerCase().includes('codex') ? 'codex' : 'opencode',
+          agent: agentId,
         }),
       });
     } catch (e) {
