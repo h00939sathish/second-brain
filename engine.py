@@ -1777,9 +1777,10 @@ def cmd_sweep(args, cfg):
         l0_lines.append("")
 
     active_claims = [c for c in all_claims() if c["fm"].get("status", "active") == "active"]
-    header_size = len("\n".join(l0_lines).encode("utf-8"))
-    remaining = L0_BUDGET - header_size - 50
     l0_lines.append(f"## Knowledge ({len(active_claims)} active)")
+    current_size = len(("\n".join(l0_lines) + "\n").encode("utf-8"))
+    remaining = L0_BUDGET - current_size - 60  # safety reserve for trailing message
+
     for c in sorted(active_claims, key=lambda x: x["id"], reverse=True):
         claim_text = c["fm"].get("claim", "")
         if len(claim_text) > L0_MAX_LINE:
