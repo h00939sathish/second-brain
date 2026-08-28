@@ -1,54 +1,21 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-second_brain.py - Multi-agent coordination hub + tiered memory engine (v4).
+second_brain.py - Multi-agent coordination hub + autonomous execution pipeline (v4.1).
 
 Tiered memory:
   L0 = compact pointers ALWAYS injected into agent sessions (~2.2KB budget)
   L1 = this vault: git-backed markdown (claims, specs, tasks, sessions, context)
   L2 = raw session transcripts (opaque, never read/written here)
 
-Coordination & Execution Layer:
-  Specs    = Upstream architectural intent & phased decomposition (from Traycer)
-  Tasks    = Git-backed Kanban workflow (backlog->planning->running->review->done) (from agtx)
-  Sessions = Live agent presence, worktree tracking, file reservations & handoffs
-  Context  = Shared discoveries/decisions/blockers (with TTL & claim promotion)
-  Claims   = Permanent knowledge with truth lifecycle & SQLite FTS5 (BM25) search
+Autonomous Role Pipeline:
+  Codex            = PLANNER  (Upstream specs, phased task breakdown, sign-off)
+  opencode/Claude  = BUILDER  (Task execution, file reservations, phased build)
+  Antigravity CLI  = REVIEWER (Diff audit, test verification, report to Codex)
 
-Deterministic operations only. Zero external dependencies (uses standard library).
-
-Commands:
-  # Knowledge & Claims
-  init                        create vault skeleton + config
-  claim <text> [--status --confidence --source --tags]   add an L1 claim
-  supersede <id> <newid>      mark <id> superseded by <newid> (chain-aware)
-  dispute <id> --reason ".." [--by who]   mark disputed, keep evidence
-  recall <query> [--tag] [--status] [--all]  deterministic BM25 recall + withheld report
-  promote <context-id> [--confidence --tags]  promote context note to permanent claim
-  status                      counts by status, chain integrity, L0 budget
-  sweep [--commit]            cron: expire stale, archive TTL notes, rebuild L0, git commit
-  verify <id>                 chain integrity check for one claim
-  related <id>                graph traversal for one claim
-
-  # Upstream Specs & Phased Planning (Traycer pattern)
-  spec-create --project <p> --title <t> --spec <text> [--phases <p1,p2...>]
-  specs [--project <p>]
-
-  # Kanban Tasks (agtx pattern)
-  task-create --title <t> [--project <p>] [--spec <id>] [--agent <a>] [--phase <ph>] [--files <f1,f2>]
-  task-move <id> --status <backlog|planning|running|review|done> [--agent <a>] [--notes <text>]
-  tasks [--project <p>] [--status <s>] [--agent <a>]
-
-  # Sessions & Concurrency Control
-  session-start --agent <name> [--project <p>] [--task <t>] [--branch <b>] [--worktree <w>] [--files <f1,f2>] [--lease <mins>]
-  session-update <id> [--progress <text>] [--files <f1,f2>] [--extend-lease <mins>]
-  session-end <id> [--summary <text>] [--target-agent <a>] [--next-steps <s>] [--modified-files <f1,f2>] [--test-status <t>]
-  sessions [--agent <a>] [--project <p>] [--active]
-  reserve <session-id> --files <f1,f2> [--lease <mins>]
-  check-files --files <f1,f2> [--project <p>]
-  post <text> [--project <p>] [--tags <t>] [--agent <a>]
-  read [--query <q>] [--project <p>] [--agent <a>] [--tag <t>] [--limit N]
-  dashboard                   full multi-agent status view (Kanban + Sessions + Locks)
+Workload Routing:
+  Trivial Tasks    -> Direct execution by current agent (zero overhead)
+  Complex Features -> Auto-activated 4-stage pipeline across specialized agents
 """
 import argparse
 import json
@@ -85,11 +52,20 @@ STATUSES = ("active", "superseded", "expired", "disputed")
 WITHHELD_STATUSES = ("expired", "superseded", "disputed")
 TASK_STATUSES = ("backlog", "planning", "running", "review", "done")
 
-L0_BUDGET = 2200  # bytes, matches Hermes memory tool limit
-SESSION_STALE_HOURS = 24  # mark active sessions stale after this
-DEFAULT_LEASE_MINS = 30  # default file lease duration in minutes
-CONTEXT_TTL_DAYS = 7  # auto-archive context notes older than this
-L0_MAX_LINE = 120  # max bytes per L0 pointer line
+AGENT_ROLES = {
+    "codex": "planner",
+    "opencode": "builder",
+    "claude": "builder",
+    "claude-code": "builder",
+    "antigravity": "reviewer",
+    "hermes": "orchestrator",
+}
+
+L0_BUDGET = 2200
+SESSION_STALE_HOURS = 24
+DEFAULT_LEASE_MINS = 30
+CONTEXT_TTL_DAYS = 7
+L0_MAX_LINE = 120
 
 
 def now():
@@ -97,7 +73,6 @@ def now():
 
 
 def time_ago(ts_str):
-    """Human-readable 'Xh ago' / 'Xm ago' from a timestamp string."""
     try:
         ts = datetime.strptime(ts_str, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
         delta = datetime.now(timezone.utc) - ts
@@ -138,6 +113,14 @@ def load_config():
             "default_limit": 20,
             "ttl_days": CONTEXT_TTL_DAYS,
         },
+        "pipeline": {
+            "roles": AGENT_ROLES,
+            "complex_keywords": [
+                "refactor", "migrate", "architecture", "implement", "build",
+                "feature", "pipeline", "database", "redesign", "endpoint", "oauth", "jwt"
+            ],
+            "complexity_threshold": 3,
+        },
         "search": {
             "engine": "sqlite_fts5",
             "algorithm": "bm25",
@@ -149,7 +132,6 @@ def save_config(cfg):
     atomic_write(cfg_path(), json.dumps(cfg, indent=2) + "\n")
 
 
-# ---- atomic write + lock (Windows-safe) ----
 def atomic_write(path: Path, content: str):
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".tmp")
@@ -158,7 +140,6 @@ def atomic_write(path: Path, content: str):
 
 
 class FileLock:
-    """Cross-process advisory lock (msvcrt on Windows, fcntl elsewhere)."""
     def __init__(self, path: Path):
         self.path = path
         self._f = None
@@ -192,9 +173,7 @@ def lock():
     return FileLock(VAULT / ".lock")
 
 
-# ---- generic frontmatter parser ----
 def parse_frontmatter(path: Path):
-    """Parse a frontmatter markdown file. Returns {fm, body, raw, path} or None."""
     if not path.exists():
         return None
     txt = path.read_text(encoding="utf-8")
@@ -211,7 +190,6 @@ def parse_frontmatter(path: Path):
 
 
 def frontmatter_block(fm, key_order=None):
-    """Build a ---frontmatter--- block from a dict."""
     if key_order is None:
         key_order = list(fm.keys())
     lines = ["---"]
@@ -231,7 +209,6 @@ def get_db_path():
 
 
 def init_search_db():
-    """Initializes SQLite FTS5 virtual tables."""
     db_path = get_db_path()
     db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(db_path))
@@ -282,7 +259,6 @@ def init_search_db():
 
 
 def reindex_all_search():
-    """Syncs the SQLite FTS5 index from the markdown files (Markdown is source of truth)."""
     conn = init_search_db()
     cur = conn.cursor()
 
@@ -326,7 +302,6 @@ def reindex_all_search():
 
 
 def search_claims_fts(query: str, status: str = "", tag: str = ""):
-    """Searches claims using FTS5 BM25 ranking."""
     if not query and not status and not tag:
         return all_claims()
 
@@ -384,7 +359,6 @@ def search_claims_fts(query: str, status: str = "", tag: str = ""):
 
 
 def search_context_fts(query: str, project: str = "", agent: str = "", tag: str = ""):
-    """Searches context notes using FTS5 BM25 ranking."""
     conn = init_search_db()
     cur = conn.cursor()
     results = []
@@ -640,6 +614,160 @@ def git_commit(msg):
                    cwd=VAULT, capture_output=True)
 
 
+# ================ AUTONOMOUS PIPELINE ROUTER ================
+
+def estimate_workload_complexity(prompt: str, cfg: dict):
+    """Classifies if a prompt is trivial or complex enough to require the multi-agent pipeline."""
+    p_cfg = cfg.get("pipeline", {})
+    keywords = p_cfg.get("complex_keywords", [
+        "refactor", "migrate", "architecture", "implement", "build",
+        "feature", "pipeline", "database", "redesign", "endpoint", "oauth", "jwt"
+    ])
+    threshold = int(p_cfg.get("complexity_threshold", 3))
+
+    score = 0
+    clean_p = prompt.lower()
+    for kw in keywords:
+        if kw in clean_p:
+            score += 1
+
+    if len(prompt.split()) > 35:
+        score += 2
+    if "\n" in prompt.strip():
+        score += 1
+    if any(sep in prompt for sep in (",", ";", " and then ", " also ")):
+        score += 1
+
+    is_complex = score >= threshold
+    return is_complex, score
+
+
+def cmd_cycle_route(args, cfg):
+    """Evaluates a user prompt and routes the agent into the appropriate workflow."""
+    agent = (args.agent or "unknown").lower()
+    project = args.project or "default"
+    prompt = args.prompt or ""
+
+    is_complex, score = estimate_workload_complexity(prompt, cfg)
+    role = AGENT_ROLES.get(agent, "builder")
+
+    print(f"== CYCLE ROUTER (agent={agent}, role={role}, score={score}) ==")
+
+    if not is_complex:
+        print("[ROUTE: DIRECT EXECUTION]")
+        print("Workload is lightweight. You may execute and complete this task directly in this session.")
+        return 0
+
+    print("[ROUTE: AUTONOMOUS 4-STAGE PIPELINE ACTIVATED]")
+    print(f"Workload is complex (score={score}). Enforcing: Codex (Planner) -> opencode/Claude (Builder) -> Antigravity (Reviewer).")
+    print()
+
+    if role == "planner":  # Codex
+        print("YOUR ROLE: PLANNER (Codex)")
+        print("Actions required:")
+        print(f"  1. Draft upstream architecture spec: brain_spec_create(project='{project}', title='...', spec='...', phases='...')")
+        print(f"  2. Decompose into Kanban tasks: brain_task_create(project='{project}', title='...', agent='opencode'|'claude')")
+        print("  3. Advance task to [planning] or [running] for builders.")
+
+    elif role == "builder":  # opencode / Claude Code
+        print(f"YOUR ROLE: BUILDER ({agent})")
+        # Check if an existing spec/task is ready
+        tasks = [t for t in all_tasks() if t["fm"].get("status") in ("planning", "running")]
+        if tasks:
+            t = tasks[0]
+            print(f"Active Task Available: [{t['id']}] {t['fm'].get('title')}")
+            print(f"  1. Claim task to running: brain_task_move(task_id='{t['id']}', status='running')")
+            print(f"  2. Start session & reserve files: brain_session_start(agent='{agent}', project='{project}', task_id='{t['id']}', files='...', lease_mins=30)")
+            print("  3. Implement code phase & run tests.")
+            print(f"  4. End session with handoff to Antigravity: brain_session_end(..., target_agent='antigravity') and brain_task_move(task_id='{t['id']}', status='review').")
+        else:
+            # Create a task in planning for Codex
+            ts = now()
+            tid = "t-" + datetime.now().strftime("%Y%m%d") + "-" + uuid.uuid4().hex[:6]
+            title = prompt.split("\n")[0][:80]
+            tfm = {
+                "id": tid,
+                "title": title,
+                "project": project,
+                "spec_id": "",
+                "phase": "",
+                "agent": "codex",
+                "status": "planning",
+                "files": "",
+                "created": ts,
+                "updated": ts,
+            }
+            body = f"# Task: {title}\n\nUser Request: {prompt}\n\n## Activity Log\n- [{ts[11:16]}] Created by {agent} (routed to Codex for planning)\n"
+            atomic_write(task_path(tid), frontmatter_block(tfm, TASK_FM_ORDER) + "\n" + body)
+            reindex_all_search()
+            git_commit(f"task {tid}: created by {agent} for codex planning")
+            print(f"Created Task [{tid}] in [planning] assigned to Codex.")
+            print("Next step: Codex must create the architectural spec before code implementation.")
+
+    elif role == "reviewer":  # Antigravity
+        print("YOUR ROLE: REVIEWER (Antigravity CLI)")
+        review_tasks = [t for t in all_tasks() if t["fm"].get("status") == "review"]
+        if review_tasks:
+            t = review_tasks[0]
+            print(f"Task Ready for Review: [{t['id']}] {t['fm'].get('title')}")
+            print("Actions required:")
+            print("  1. Audit git diffs vs upstream spec.")
+            print("  2. Run test suites (pytest/cargo/npm).")
+            print(f"  3. Post verification report: brain_post(text='Verification report...', tags='review,report')")
+            print(f"  4. Mark task done: brain_task_move(task_id='{t['id']}', status='done')")
+        else:
+            print("No tasks currently awaiting review in [review] column.")
+
+    return 0
+
+
+def cmd_cycle_next(args, cfg):
+    """Inspects the live Kanban board and reports the exact next action for an agent."""
+    agent = (args.agent or "unknown").lower()
+    project = args.project or ""
+    role = AGENT_ROLES.get(agent, "builder")
+
+    tasks = all_tasks()
+    if project:
+        tasks = [t for t in tasks if t["fm"].get("project") == project]
+
+    print(f"== NEXT ACTION FOR {agent.upper()} (role: {role}) ==")
+
+    if role == "planner":  # Codex
+        pending_plan = [t for t in tasks if t["fm"].get("status") in ("backlog", "planning")]
+        review_done = [t for t in tasks if t["fm"].get("status") == "done"][-3:]
+        if pending_plan:
+            t = pending_plan[0]
+            print(f"ACTION REQUIRED: Plan task [{t['id']}] {t['fm'].get('title')}")
+            print(f"  -> Run brain_spec_create and break down phases for builder.")
+        else:
+            print("All tasks planned. Monitoring pipeline.")
+
+    elif role == "builder":  # opencode / Claude
+        running = [t for t in tasks if t["fm"].get("status") == "running"]
+        planning = [t for t in tasks if t["fm"].get("status") == "planning"]
+        if running:
+            t = running[0]
+            print(f"ACTION REQUIRED: Execute Task [{t['id']}] {t['fm'].get('title')}")
+            print("  -> Claim file lease, implement code phase, and hand off to Antigravity for review.")
+        elif planning:
+            t = planning[0]
+            print(f"WAITING: Task [{t['id']}] is in [planning]. Awaiting Codex spec.")
+        else:
+            print("No active build tasks in [running]. Check backlog or request new feature.")
+
+    elif role == "reviewer":  # Antigravity
+        in_review = [t for t in tasks if t["fm"].get("status") == "review"]
+        if in_review:
+            t = in_review[0]
+            print(f"ACTION REQUIRED: Review Task [{t['id']}] {t['fm'].get('title')}")
+            print("  -> Audit diffs vs spec, run tests, post report, and mark done.")
+        else:
+            print("No tasks pending review in [review].")
+
+    return 0
+
+
 # ================ KNOWLEDGE & CLAIMS COMMANDS ================
 
 def cmd_init(args, cfg=None):
@@ -650,22 +778,19 @@ def cmd_init(args, cfg=None):
     gitignore = """# state & lock files
 .lock
 *.tmp
-# Search index SQLite database
 meta/search_index.db
-# L2 transcripts are owned by Hermes session_search - keep them out of git
 sessions/*.json
-# large blobs
 *.log
 """
     (VAULT / ".gitignore").write_text(gitignore, encoding="utf-8")
     save_config(load_config())
     readme_path = VAULT / "README.md"
     if not readme_path.exists():
-        atomic_write(readme_path, f"# Second Brain (v4)\n\nMulti-agent coordination hub. Vault: {VAULT}\n")
+        atomic_write(readme_path, f"# Second Brain (v4.1)\n\nMulti-agent coordination hub. Vault: {VAULT}\n")
     if not (VAULT / ".git").exists():
         subprocess.run(["git", "init"], cwd=VAULT, capture_output=True)
     reindex_all_search()
-    git_commit("init vault skeleton v4")
+    git_commit("init vault skeleton v4.1")
     print(f"vault initialised at {VAULT}")
     return 0
 
@@ -1283,7 +1408,6 @@ def cmd_read(args, cfg):
 
 
 def cmd_dashboard(args, cfg):
-    """Full multi-agent situational awareness with Kanban Board, Sessions, and Locks."""
     sessions = all_sessions()
     active = [s for s in sessions if s["fm"].get("status") == "active"]
     recent_ended = [s for s in sessions if s["fm"].get("status") == "ended"][-5:]
@@ -1296,7 +1420,7 @@ def cmd_dashboard(args, cfg):
     locks = get_active_file_locks()
 
     print("=" * 48)
-    print("         SECOND BRAIN -- DASHBOARD (v4)")
+    print("         SECOND BRAIN -- DASHBOARD (v4.1)")
     print("=" * 48)
     print()
 
@@ -1378,7 +1502,6 @@ def cmd_sweep(args, cfg):
     exp_unreviewed = int(sweep_cfg.get("expire_unreviewed_after_days", 120))
     changed = []
 
-    # 1. Stale session expiry & release leases
     stale_hours = int(cfg.get("session", {}).get("stale_after_hours", SESSION_STALE_HOURS))
     cutoff = datetime.now(timezone.utc) - timedelta(hours=stale_hours)
     for s in all_sessions():
@@ -1399,7 +1522,6 @@ def cmd_sweep(args, cfg):
             atomic_write(s["path"], frontmatter_block(s["fm"], SESSION_FM_ORDER) + "\n" + body + "\n")
             changed.append((s["id"], f"session stale (agent={s['fm'].get('agent','?')})"))
 
-    # 2. Context Note TTL Archival
     ttl_days = int(cfg.get("context", {}).get("ttl_days", CONTEXT_TTL_DAYS))
     ttl_cutoff = datetime.now(timezone.utc) - timedelta(days=ttl_days)
     for n in all_context_notes(include_archived=False):
@@ -1414,7 +1536,6 @@ def cmd_sweep(args, cfg):
             os.replace(n["path"], target_path)
             changed.append((n["id"], f"context note archived (>{ttl_days}d old)"))
 
-    # 3. Claim staleness flags
     for c in all_claims():
         st = c["fm"].get("status", "active")
         if st != "active":
@@ -1434,17 +1555,14 @@ def cmd_sweep(args, cfg):
                 atomic_write(c["path"], frontmatter_block(c["fm"], CLAIM_FM_ORDER) + "\n" + body + "\n")
             changed.append((c["id"], f"stale ({age_days}d) - flagged for review"))
 
-    # 4. Rebuild FTS5 Index (claims, context, specs, tasks)
     reindex_all_search()
 
-    # 5. Rebuild L0 Pointer Set (Budget-Aware)
     l0_lines = [
         f"# Brain (auto-generated {ts})",
         "# Call brain_session_start on session begin. brain_recall for knowledge.",
         "",
     ]
 
-    # Section 1: Active sessions & file locks
     active_sessions = [s for s in all_sessions() if s["fm"].get("status") == "active"]
     if active_sessions:
         l0_lines.append("## Active Sessions")
@@ -1458,7 +1576,6 @@ def cmd_sweep(args, cfg):
             l0_lines.append(f"- {agent} -> {proj}: {task}{locks} ({age})")
         l0_lines.append("")
 
-    # Section 2: Active Kanban Tasks (running / review)
     active_tasks = [t for t in all_tasks() if t["fm"].get("status") in ("running", "review")][:3]
     if active_tasks:
         l0_lines.append("## Active Tasks")
@@ -1469,7 +1586,6 @@ def cmd_sweep(args, cfg):
             l0_lines.append(f"- [{st}]{agent} {t['id']}: {fm.get('title')[:60]}")
         l0_lines.append("")
 
-    # Section 3: Recent context notes
     recent_ctx = list(reversed(all_context_notes(include_archived=False)))[:5]
     if recent_ctx:
         l0_lines.append("## Context")
@@ -1482,7 +1598,6 @@ def cmd_sweep(args, cfg):
             l0_lines.append(f"- [{agent}] {preview}{proj_tag}")
         l0_lines.append("")
 
-    # Section 4: Active claims (truncated to fit remaining budget)
     active_claims = [c for c in all_claims() if c["fm"].get("status", "active") == "active"]
     header_size = len("\n".join(l0_lines).encode("utf-8"))
     remaining = L0_BUDGET - header_size - 50
@@ -1515,7 +1630,7 @@ def cmd_sweep(args, cfg):
 # ================ CLI ================
 
 def main():
-    ap = argparse.ArgumentParser(description="Second Brain — multi-agent coordination hub (v4)")
+    ap = argparse.ArgumentParser(description="Second Brain — multi-agent coordination hub (v4.1)")
     sub = ap.add_subparsers(dest="cmd")
 
     # -- knowledge commands --
@@ -1557,6 +1672,16 @@ def main():
 
     p_sw = sub.add_parser("sweep")
     p_sw.add_argument("--commit", action="store_true")
+
+    # -- autonomous pipeline commands --
+    p_cr = sub.add_parser("cycle-route")
+    p_cr.add_argument("--agent", required=True)
+    p_cr.add_argument("--prompt", required=True)
+    p_cr.add_argument("--project", default="")
+
+    p_cn = sub.add_parser("cycle-next")
+    p_cn.add_argument("--agent", required=True)
+    p_cn.add_argument("--project", default="")
 
     # -- upstream specs commands (Traycer) --
     p_spec_c = sub.add_parser("spec-create")
@@ -1657,7 +1782,8 @@ def main():
             "init": cmd_init, "claim": cmd_claim, "supersede": cmd_supersede,
             "dispute": cmd_dispute, "promote": cmd_promote, "recall": cmd_recall,
             "status": cmd_status, "sweep": cmd_sweep, "verify": cmd_verify,
-            "related": cmd_related, "spec-create": cmd_spec_create, "specs": cmd_specs,
+            "related": cmd_related, "cycle-route": cmd_cycle_route, "cycle-next": cmd_cycle_next,
+            "spec-create": cmd_spec_create, "specs": cmd_specs,
             "task-create": cmd_task_create, "task-move": cmd_task_move, "tasks": cmd_tasks,
             "session-start": cmd_session_start, "session-update": cmd_session_update,
             "session-end": cmd_session_end, "reserve": cmd_reserve,

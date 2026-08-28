@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-brain_mcp.py - MCP bridge exposing the second-brain to any MCP client (v4).
+brain_mcp.py - MCP bridge exposing the second-brain to any MCP client (v4.1).
 (opencode, Hermes, Claude Code, Antigravity, Codex, ...).
 
-Tools (24 total):
+Tools (26 total):
+  Autonomous Cycle: brain_cycle_route, brain_cycle_next
   Specs & Planning: brain_spec_create, brain_specs
   Kanban Tasks:     brain_task_create, brain_task_move, brain_tasks
   Coordination:     brain_session_start, brain_session_update, brain_session_end,
@@ -44,14 +45,27 @@ def _run(handler, **kwargs):
         return f"ERROR: {type(e).__name__}: {e}"
 
 
+# ================ AUTONOMOUS PIPELINE ROUTING ================
+
+@mcp.tool()
+def brain_cycle_route(agent: str, prompt: str, project: str = "") -> str:
+    """Evaluate a user request and determine whether to execute directly or activate
+    the 4-stage pipeline: Codex (Planner) -> opencode/Claude (Builder) -> Antigravity (Reviewer).
+    Call this at the start of any conversation with the user's prompt!"""
+    return _run(engine.cmd_cycle_route, agent=agent, prompt=prompt, project=project)
+
+
+@mcp.tool()
+def brain_cycle_next(agent: str, project: str = "") -> str:
+    """Inspect the live Kanban board and get the exact next actionable step for this agent."""
+    return _run(engine.cmd_cycle_next, agent=agent, project=project)
+
+
 # ================ UPSTREAM SPECS & PLANNING (Traycer) ================
 
 @mcp.tool()
 def brain_spec_create(title: str, spec: str, project: str = "", phases: str = "") -> str:
-    """Create an upstream architecture spec with phased milestones before editing code.
-    - title: short spec title
-    - spec: full architecture overview & constraints
-    - phases: comma-separated execution steps (e.g. 'Phase 1: DB, Phase 2: API, Phase 3: Tests')"""
+    """Create an upstream architecture spec with phased milestones before editing code."""
     return _run(engine.cmd_spec_create, title=title, spec=spec, project=project, phases=phases)
 
 
@@ -66,20 +80,14 @@ def brain_specs(project: str = "") -> str:
 @mcp.tool()
 def brain_task_create(title: str, project: str = "", spec_id: str = "",
                       agent: str = "", phase: str = "", files: str = "") -> str:
-    """Create a new task on the Git-backed Kanban board in the [backlog] column.
-    - spec_id: optional linked spec (e.g. 'spec-20260828-abc123')
-    - agent: assigned agent (e.g. 'claude', 'codex', 'opencode')
-    - files: comma-separated target files"""
+    """Create a new task on the Git-backed Kanban board in the [backlog] column."""
     return _run(engine.cmd_task_create, title=title, project=project,
                 spec=spec_id, agent=agent, phase=phase, files=files)
 
 
 @mcp.tool()
 def brain_task_move(task_id: str, status: str, agent: str = "", notes: str = "") -> str:
-    """Advance a task on the Kanban board.
-    - status: 'backlog', 'planning', 'running', 'review', or 'done'
-    - agent: agent taking action
-    - notes: optional progress or review note"""
+    """Advance a task on the Kanban board (backlog -> planning -> running -> review -> done)."""
     return _run(engine.cmd_task_move, id=task_id, status=status, agent=agent, notes=notes)
 
 
@@ -95,8 +103,7 @@ def brain_tasks(project: str = "", status: str = "", agent: str = "") -> str:
 def brain_session_start(agent: str, project: str = "", task: str = "",
                         task_id: str = "", files: str = "", lease_mins: int = 30,
                         branch: str = "", worktree: str = "") -> str:
-    """Register this agent's active session with optional file reservations, git branch, and worktree.
-    Call at the START of every conversation so other agents know what you're working on."""
+    """Register this agent's active session with optional file reservations, git branch, and worktree."""
     return _run(engine.cmd_session_start, agent=agent, project=project, task=task,
                 task_id=task_id, files=files, lease=lease_mins, branch=branch, worktree=worktree)
 
@@ -113,8 +120,7 @@ def brain_session_update(session_id: str, progress: str = "", files: str = "",
 def brain_session_end(session_id: str, summary: str = "", target_agent: str = "",
                       next_steps: str = "", modified_files: str = "",
                       test_status: str = "") -> str:
-    """End your session and release all file locks. Record structured handoff details
-    so the next agent picking up this work has exact context."""
+    """End your session and release all file locks. Record structured handoff details."""
     return _run(engine.cmd_session_end, id=session_id, summary=summary,
                 target_agent=target_agent, next_steps=next_steps,
                 modified_files=modified_files, test_status=test_status)
@@ -174,8 +180,7 @@ def brain_status() -> str:
 @mcp.tool()
 def brain_recall(query: str = "", tag: str = "", status: str = "",
                  show_all: bool = False) -> str:
-    """Deterministic BM25 full-text recall over stored claims (powered by SQLite FTS5).
-    Expired/superseded/disputed claims are withheld by default."""
+    """Deterministic BM25 full-text recall over stored claims (powered by SQLite FTS5)."""
     return _run(engine.cmd_recall, query=query, tag=tag, status=status,
                 **{"all": show_all})
 
