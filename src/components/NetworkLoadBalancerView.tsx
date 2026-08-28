@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { QueueTask, DaemonLoadInfo } from '../types';
 import { useTrackComponentRender } from '../hooks/usePerformanceProfiler';
 
@@ -9,6 +9,14 @@ interface NetworkLoadBalancerViewProps {
   onAddQueueTask?: (task: QueueTask) => void;
 }
 
+const hexToRgba = (hex: string, alpha: number) => {
+  const cleanHex = (hex || '#C9A86A').replace('#', '');
+  const r = parseInt(cleanHex.substring(0, 2), 16) || 201;
+  const g = parseInt(cleanHex.substring(2, 4), 16) || 168;
+  const b = parseInt(cleanHex.substring(4, 6), 16) || 106;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+
 export const NetworkLoadBalancerView: React.FC<NetworkLoadBalancerViewProps> = ({
   daemonLoads,
   queueTasks,
@@ -17,6 +25,11 @@ export const NetworkLoadBalancerView: React.FC<NetworkLoadBalancerViewProps> = (
   useTrackComponentRender('NetworkLoadBalancerView');
   const [tasksList, setTasksList] = useState<QueueTask[]>(queueTasks);
   const [activeTab, setActiveTab] = useState<'overview' | 'regions'>('overview');
+  const [liveLoads, setLiveLoads] = useState<DaemonLoadInfo[]>(daemonLoads);
+
+  useEffect(() => {
+    setLiveLoads(daemonLoads);
+  }, [daemonLoads]);
 
   const promoteTask = (id: string) => {
     setTasksList((prev) => {
@@ -28,6 +41,41 @@ export const NetworkLoadBalancerView: React.FC<NetworkLoadBalancerViewProps> = (
       copy[idx] = temp;
       return copy;
     });
+  };
+
+  const adjustThreads = (daemonName: string, delta: number) => {
+    setLiveLoads((prev) =>
+      prev.map((d) => {
+        if (d.name === daemonName) {
+          const newThreads = Math.max(0, Math.min(16, d.activeThreads + delta));
+          const calculatedLoad = Math.min(100, Math.max(10, Math.round(newThreads * 11 + 5)));
+          return {
+            ...d,
+            activeThreads: newThreads,
+            loadPercent: calculatedLoad,
+          };
+        }
+        return d;
+      })
+    );
+  };
+
+  const simulateBurst = () => {
+    setLiveLoads((prev) =>
+      prev.map((d) => {
+        const boost = Math.floor(Math.random() * 4) + 2;
+        const newThreads = Math.min(15, d.activeThreads + boost);
+        return {
+          ...d,
+          activeThreads: newThreads,
+          loadPercent: Math.min(98, Math.round(newThreads * 9 + 15)),
+        };
+      })
+    );
+  };
+
+  const resetLoads = () => {
+    setLiveLoads(daemonLoads);
   };
 
   return (
@@ -44,11 +92,26 @@ export const NetworkLoadBalancerView: React.FC<NetworkLoadBalancerViewProps> = (
             </span>
           </div>
           <p className="font-code-sm text-xs text-white/40 mt-1">
-            Core Engine v2.4.0-stable • Autonomous traffic distributor & mesh orchestrator.
+            Core Engine v2.4.0-stable • Autonomous traffic distributor & dynamic thread telemetry.
           </p>
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            onClick={simulateBurst}
+            className="px-3.5 py-2 bg-white/5 hover:bg-white/10 text-white/80 hover:text-white border border-white/10 rounded-full font-code-sm text-xs flex items-center gap-1.5 transition-all cursor-pointer"
+            title="Simulate load burst to see pulse acceleration"
+          >
+            <span className="material-symbols-outlined text-[15px] text-[#E5A93C]">bolt</span>
+            Simulate Traffic Spike
+          </button>
+          <button
+            onClick={resetLoads}
+            className="p-2 bg-white/5 hover:bg-white/10 text-white/60 hover:text-white border border-white/10 rounded-full font-code-sm text-xs transition-all cursor-pointer"
+            title="Reset to baseline loads"
+          >
+            <span className="material-symbols-outlined text-[15px]">restart_alt</span>
+          </button>
           <button
             onClick={onOpenDeployModal}
             className="px-4 py-2 bg-[#C9A86A] hover:bg-[#dfc188] text-black font-semibold rounded-full font-code-sm text-xs flex items-center gap-1.5 transition-all shadow-[0_0_12px_rgba(201,168,106,0.25)] cursor-pointer"
@@ -59,50 +122,152 @@ export const NetworkLoadBalancerView: React.FC<NetworkLoadBalancerViewProps> = (
         </div>
       </div>
 
-      {/* Daemon Load Capacities Cards */}
+      {/* Daemon Load Capacities Cards with Dynamic Visual Pulse Animation */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        {daemonLoads.map((d) => {
+        {liveLoads.map((d) => {
           const isHigh = d.loadPercent > 80;
+          const threads = Math.max(0, d.activeThreads);
+          
+          // Dynamic pulse speed calculation:
+          // Lower thread count -> slower pulse (e.g. 3.2s)
+          // Higher thread count -> faster pulse (e.g. 0.55s)
+          const pulseDuration = Math.max(0.5, 3.2 - Math.min(threads, 12) * 0.24);
+          
+          // Dynamic color intensity & glow calculation:
+          const loadIntensity = Math.min(1, Math.max(0.2, (threads / 8) * 0.75 + (d.loadPercent / 100) * 0.25));
+          const colorHex = d.color || '#C9A86A';
+          
+          const glowIdle = hexToRgba(colorHex, 0.04 + loadIntensity * 0.08);
+          const glowActive = hexToRgba(colorHex, 0.25 + loadIntensity * 0.55);
+          const borderIdle = hexToRgba(colorHex, 0.12 + loadIntensity * 0.18);
+          const borderActive = hexToRgba(colorHex, 0.4 + loadIntensity * 0.5);
+          const glowBlurMax = Math.round(10 + loadIntensity * 26);
+          const frequencyHz = (1 / pulseDuration).toFixed(1);
+
           return (
             <div
               key={d.name}
-              className="bg-[#111111] border border-white/10 p-5 rounded-3xl flex flex-col justify-between relative overflow-hidden"
+              style={{
+                animation: `daemon-card-pulse ${pulseDuration.toFixed(2)}s ease-in-out infinite`,
+                ['--daemon-border-idle' as string]: borderIdle,
+                ['--daemon-border-pulse' as string]: borderActive,
+                ['--daemon-pulse-color-idle' as string]: glowIdle,
+                ['--daemon-pulse-color-active' as string]: glowActive,
+                ['--daemon-glow-blur-idle' as string]: '4px',
+                ['--daemon-glow-blur-pulse' as string]: `${glowBlurMax}px`,
+                ['--daemon-bg-idle' as string]: '#111111',
+                ['--daemon-bg-pulse' as string]: '#151518',
+              } as React.CSSProperties}
+              className="relative p-5 rounded-3xl flex flex-col justify-between overflow-hidden group transition-all"
             >
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <span
-                    className="w-2.5 h-2.5 rounded-full"
-                    style={{ backgroundColor: d.color, boxShadow: `0 0 8px ${d.color}` }}
-                  ></span>
-                  <span className="font-medium text-sm text-white">{d.name}</span>
-                </div>
-                <span className="font-code-sm text-xs text-white/40">{d.activeThreads} Threads</span>
-              </div>
+              {/* Radial ambient glow backdrop that pulsates with active load intensity */}
+              <div
+                className="absolute -top-10 -right-10 w-36 h-36 rounded-full pointer-events-none blur-2xl transition-all duration-700"
+                style={{
+                  background: `radial-gradient(circle, ${glowActive} 0%, transparent 70%)`,
+                  opacity: 0.25 + loadIntensity * 0.5,
+                }}
+              />
 
               <div>
-                <div className="flex justify-between items-baseline mb-1.5 font-code-sm">
-                  <span className="text-xs text-white/40">Load Capacity</span>
-                  <span
-                    className="text-base font-semibold"
-                    style={{ color: isHigh ? '#E5A93C' : d.color }}
-                  >
-                    {d.loadPercent}%
-                  </span>
+                <div className="flex items-center justify-between mb-3 relative z-10">
+                  <div className="flex items-center gap-2.5">
+                    {/* Live Beacon Indicator with dynamic pulse speed */}
+                    <div className="relative flex items-center justify-center w-3 h-3">
+                      <span
+                        className="absolute inline-flex h-full w-full rounded-full opacity-75"
+                        style={{
+                          backgroundColor: d.color,
+                          animation: `daemon-beacon-ring ${pulseDuration.toFixed(2)}s cubic-bezier(0, 0, 0.2, 1) infinite`,
+                        }}
+                      />
+                      <span
+                        className="relative inline-flex rounded-full h-2 w-2"
+                        style={{
+                          backgroundColor: d.color,
+                          boxShadow: `0 0 ${Math.round(6 + loadIntensity * 10)}px ${d.color}`,
+                        }}
+                      />
+                    </div>
+                    <span className="font-medium text-sm text-white">{d.name}</span>
+                  </div>
+
+                  {/* Thread Activity Metric & Live Adjust Controls */}
+                  <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1 font-code-sm text-xs text-white/60">
+                      {/* Thread activity spark bars */}
+                      <div className="flex items-end gap-0.5 h-3 mr-1">
+                        {[0.4, 0.9, 0.6, 1.0].map((multiplier, barIdx) => (
+                          <div
+                            key={barIdx}
+                            className="w-0.5 rounded-full"
+                            style={{
+                              backgroundColor: d.color,
+                              height: `${Math.max(25, Math.min(100, (threads / 6) * 100 * multiplier))}%`,
+                              animation: `daemon-thread-spark ${pulseDuration.toFixed(2)}s ease-in-out infinite`,
+                              animationDelay: `${barIdx * 0.12}s`,
+                            }}
+                          />
+                        ))}
+                      </div>
+                      <span>{threads} Th</span>
+                    </div>
+
+                    {/* Interactive Thread Controls */}
+                    <div className="flex items-center gap-0.5 ml-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={() => adjustThreads(d.name, -1)}
+                        className="w-4 h-4 rounded-full bg-white/10 hover:bg-white/20 text-white/70 hover:text-white flex items-center justify-center text-[10px] cursor-pointer"
+                        title="Reduce thread"
+                      >
+                        -
+                      </button>
+                      <button
+                        onClick={() => adjustThreads(d.name, 1)}
+                        className="w-4 h-4 rounded-full bg-white/10 hover:bg-white/20 text-white/70 hover:text-white flex items-center justify-center text-[10px] cursor-pointer"
+                        title="Add thread"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
                 </div>
-                <div className="w-full bg-white/10 h-1.5 rounded-full overflow-hidden">
-                  <div
-                    className="h-full rounded-full transition-all duration-700"
-                    style={{
-                      width: `${d.loadPercent}%`,
-                      backgroundColor: isHigh ? '#E5A93C' : d.color,
-                    }}
-                  ></div>
+
+                <div className="relative z-10">
+                  <div className="flex justify-between items-baseline mb-1.5 font-code-sm">
+                    <span className="text-xs text-white/40">Load Capacity</span>
+                    <div className="flex items-baseline gap-1.5">
+                      <span
+                        className="text-base font-semibold"
+                        style={{ color: isHigh ? '#E5A93C' : d.color }}
+                      >
+                        {d.loadPercent}%
+                      </span>
+                    </div>
+                  </div>
+                  <div className="w-full bg-white/10 h-1.5 rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{
+                        width: `${d.loadPercent}%`,
+                        backgroundColor: isHigh ? '#E5A93C' : d.color,
+                        boxShadow: `0 0 ${Math.round(4 + loadIntensity * 8)}px ${isHigh ? '#E5A93C' : d.color}`,
+                      }}
+                    />
+                  </div>
                 </div>
               </div>
 
-              <div className="mt-3 pt-2.5 border-t border-white/5 flex justify-between font-code-sm text-[10px] text-white/40">
+              {/* Card Footer: RAM and Dynamic Pulse Telemetry */}
+              <div className="mt-3 pt-2.5 border-t border-white/5 flex justify-between items-center font-code-sm text-[10px] text-white/40 relative z-10">
                 <span>RAM: {d.memoryUsage}</span>
-                <span className="text-[#4ADE80]">Status: Active</span>
+                <span className="flex items-center gap-1">
+                  <span
+                    className="w-1.5 h-1.5 rounded-full"
+                    style={{ backgroundColor: d.color }}
+                  />
+                  <span style={{ color: d.color }}>{frequencyHz} Hz • {pulseDuration.toFixed(2)}s</span>
+                </span>
               </div>
             </div>
           );

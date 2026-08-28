@@ -38,7 +38,7 @@ import { CreateTaskModal, DocsSupportModal } from './components/CreateTaskModal'
 
 export const App: React.FC = () => {
   // Navigation & Brand state
-  const [currentTab, setCurrentTab] = useState<NavigationTab>('workflow');
+  const [currentTab, setCurrentTab] = useState<NavigationTab>('kanban');
   const [brandVariant, setBrandVariant] = useState<'secondBrain' | 'antigravity'>('secondBrain');
   const [daemonSeconds, setDaemonSeconds] = useState(15);
 
@@ -314,6 +314,7 @@ export const App: React.FC = () => {
           {currentTab === 'graph' && (
             <KnowledgeGraphView
               nodes={graphNodes}
+              onUpdateNodes={setGraphNodes}
             />
           )}
 
@@ -349,6 +350,10 @@ export const App: React.FC = () => {
       <SearchModal
         isOpen={isSearchOpen}
         onClose={() => setIsSearchOpen(false)}
+        onNavigate={(tab) => {
+          setCurrentTab(tab);
+          setIsSearchOpen(false);
+        }}
         tasks={kanbanTasks}
         onSelectTask={(task) => {
           setSelectedTask(task);

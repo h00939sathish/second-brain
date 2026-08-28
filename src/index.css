@@ -99,3 +99,44 @@
   box-shadow: 0 0 16px rgba(74, 222, 128, 0.35);
 }
 
+/* Dynamic Daemon Card Pulse Keyframes */
+@keyframes daemon-card-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 1px var(--daemon-border-idle, rgba(255, 255, 255, 0.08)),
+                0 0 var(--daemon-glow-blur-idle, 0px) var(--daemon-pulse-color-idle, transparent);
+    background-color: var(--daemon-bg-idle, #111111);
+  }
+  50% {
+    box-shadow: 0 0 0 1px var(--daemon-border-pulse, rgba(255, 255, 255, 0.25)),
+                0 0 var(--daemon-glow-blur-pulse, 18px) var(--daemon-pulse-color-active, rgba(201, 168, 106, 0.4));
+    background-color: var(--daemon-bg-pulse, #151515);
+  }
+}
+
+@keyframes daemon-beacon-ring {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.9;
+  }
+  50% {
+    transform: scale(1.6);
+    opacity: 0.1;
+  }
+  100% {
+    transform: scale(0.9);
+    opacity: 0.9;
+  }
+}
+
+@keyframes daemon-thread-spark {
+  0%, 100% {
+    opacity: 0.4;
+    transform: scaleY(0.4);
+  }
+  50% {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+}
+
+
