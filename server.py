@@ -326,6 +326,19 @@ class SecondBrainHandler(SimpleHTTPRequestHandler):
                 code = engine.cmd_task_move(args, cfg)
             return self._json_response({"success": code == 0})
 
+        elif path.startswith("/api/tasks/") and path.endswith("/terminate"):
+            tid = path.split("/")[3]
+            with engine.lock():
+                cfg = engine.load_config()
+                sessions = engine.all_sessions()
+                for s in sessions:
+                    if s["fm"].get("status") == "active":
+                        s_args = SimpleNamespace(id=s["id"], target="", branch="", summary="Terminated by Operator")
+                        engine.cmd_session_end(s_args, cfg)
+                args = SimpleNamespace(id=tid, status="done", agent="Operator", notes="Terminated by Operator")
+                code = engine.cmd_task_move(args, cfg)
+            return self._json_response({"success": code == 0, "status": "done"})
+
         elif path == "/api/dispatch":
             tid = body.get("task_id", "")
             agent = body.get("agent", "")
@@ -343,6 +356,22 @@ class SecondBrainHandler(SimpleHTTPRequestHandler):
                 code = engine.cmd_auto_cycle(args, cfg)
             return self._json_response({"success": code == 0})
 
+        self.send_response(404)
+        self.end_headers()
+
+    def do_DELETE(self):
+        parsed = urlparse(self.path)
+        path = parsed.path
+        if path.startswith("/api/tasks/"):
+            tid = path.split("/")[3]
+            with engine.lock():
+                tpath = engine.task_path(tid)
+                if os.path.exists(tpath):
+                    os.remove(tpath)
+                    engine.reindex_all_search()
+                    engine.git_commit(f"task {tid}: deleted by operator")
+                    return self._json_response({"success": True, "deleted": tid})
+                return self._json_response({"error": "Task not found"}, status=404)
         self.send_response(404)
         self.end_headers()
 

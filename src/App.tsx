@@ -202,6 +202,32 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleTerminateTask = async (taskId: string) => {
+    setKanbanTasks((prev) =>
+      prev.map((t) => (t.id === taskId ? { ...t, status: 'done', warningMessage: 'Terminated by Operator' } : t))
+    );
+    if (selectedTask?.id === taskId) {
+      setSelectedTask((prev) => (prev ? { ...prev, status: 'done', warningMessage: 'Terminated by Operator' } : null));
+    }
+    try {
+      await fetch(`/api/tasks/${taskId}/terminate`, { method: 'POST' });
+    } catch {
+      console.warn('Terminate API offline, updated locally');
+    }
+  };
+
+  const handleDeleteTask = async (taskId: string) => {
+    setKanbanTasks((prev) => prev.filter((t) => t.id !== taskId));
+    if (selectedTask?.id === taskId) {
+      setSelectedTask(null);
+    }
+    try {
+      await fetch(`/api/tasks/${taskId}`, { method: 'DELETE' });
+    } catch {
+      console.warn('Delete API offline, updated locally');
+    }
+  };
+
   const handleUpdateTasks = (newTasks: KanbanTask[]) => {
     setKanbanTasks(newTasks);
   };
@@ -254,6 +280,8 @@ export const App: React.FC = () => {
               contextMessages={contextMessages}
               onOpenTaskModal={(task) => setSelectedTask(task)}
               onAddTask={() => setIsCreateTaskOpen(true)}
+              onTerminateTask={handleTerminateTask}
+              onDeleteTask={handleDeleteTask}
             />
           )}
 
@@ -325,6 +353,8 @@ export const App: React.FC = () => {
         task={selectedTask}
         isOpen={!!selectedTask}
         onClose={() => setSelectedTask(null)}
+        onTerminate={handleTerminateTask}
+        onDelete={handleDeleteTask}
         onStatusChange={(newStatus) => {
           if (selectedTask) {
             const updated = { ...selectedTask, status: newStatus };

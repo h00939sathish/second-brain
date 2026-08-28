@@ -7,6 +7,8 @@ interface TaskDetailModalProps {
   onClose: () => void;
   onStatusChange?: (newStatus: KanbanStatus) => void;
   onDispatch?: (taskId: string) => void;
+  onTerminate?: (taskId: string) => void;
+  onDelete?: (taskId: string) => void;
 }
 
 export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
@@ -14,9 +16,11 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   isOpen,
   onClose,
   onStatusChange,
-  onDispatch,
+  onTerminate,
+  onDelete,
 }) => {
   const [isDispatching, setIsDispatching] = useState(false);
+  const [isTerminating, setIsTerminating] = useState(false);
   const [dispatchResult, setDispatchResult] = useState<string | null>(null);
 
   if (!isOpen || !task) return null;
@@ -50,6 +54,42 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
       setDispatchResult('Server offline');
     } finally {
       setIsDispatching(false);
+    }
+  };
+
+  const handleTerminateClick = async () => {
+    if (!window.confirm(`Are you sure you want to terminate task [${task.id}]? This will halt any running agent and release all file locks.`)) {
+      return;
+    }
+    setIsTerminating(true);
+    try {
+      if (onTerminate) {
+        onTerminate(task.id);
+      } else {
+        await fetch(`/api/tasks/${task.id}/terminate`, { method: 'POST' });
+        if (onStatusChange) onStatusChange('done');
+      }
+      onClose();
+    } catch {
+      alert('Failed to terminate task');
+    } finally {
+      setIsTerminating(false);
+    }
+  };
+
+  const handleDeleteClick = async () => {
+    if (!window.confirm(`Permanently delete task [${task.id}] from the vault?`)) {
+      return;
+    }
+    try {
+      if (onDelete) {
+        onDelete(task.id);
+      } else {
+        await fetch(`/api/tasks/${task.id}`, { method: 'DELETE' });
+      }
+      onClose();
+    } catch {
+      alert('Failed to delete task');
     }
   };
 
@@ -161,30 +201,56 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
             </div>
           )}
 
-          <div className="flex items-center justify-between pt-4 border-t border-white/10 gap-3">
-            <button
-              onClick={handleDispatchClick}
-              disabled={isDispatching}
-              className="px-4 py-2 rounded-full bg-white/10 hover:bg-white/20 text-white font-medium text-xs cursor-pointer transition-all disabled:opacity-50"
-            >
-              {isDispatching ? 'Dispatching...' : '⚡ Trigger Dispatch'}
-            </button>
-
-            <div className="flex items-center gap-2">
-              {task.status !== 'done' && (
+          {/* Action Buttons Toolbar */}
+          <div className="pt-4 border-t border-white/10 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
                 <button
-                  onClick={() => handleStatusClick('done')}
-                  className="px-4 py-2 rounded-full bg-[#10b981]/20 hover:bg-[#10b981]/30 text-[#10b981] border border-[#10b981]/40 font-semibold text-xs cursor-pointer transition-all"
+                  onClick={handleDispatchClick}
+                  disabled={isDispatching}
+                  className="px-3.5 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white font-medium text-xs cursor-pointer transition-all disabled:opacity-50 flex items-center gap-1.5"
                 >
-                  ✓ Mark as Done
+                  <span>⚡</span> {isDispatching ? 'Dispatching...' : 'Dispatch'}
                 </button>
-              )}
-              <button
-                onClick={onClose}
-                className="px-5 py-2 rounded-full bg-[#C9A86A] hover:bg-[#dfc188] text-black font-semibold text-xs shadow-[0_0_10px_rgba(201,168,106,0.25)] cursor-pointer transition-all"
-              >
-                Close
-              </button>
+
+                {/* Terminate Task Button */}
+                <button
+                  onClick={handleTerminateClick}
+                  disabled={isTerminating}
+                  className="px-3.5 py-1.5 rounded-full bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/40 font-semibold text-xs cursor-pointer transition-all flex items-center gap-1"
+                  title="Halt active agent execution, release all file locks, and complete task"
+                >
+                  <span>🛑</span> {isTerminating ? 'Terminating...' : 'Terminate Task'}
+                </button>
+
+                {/* Delete Task Button */}
+                <button
+                  onClick={handleDeleteClick}
+                  className="p-2 rounded-full hover:bg-red-500/20 text-white/40 hover:text-red-400 cursor-pointer transition-colors"
+                  title="Delete Task Permanently"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {task.status !== 'done' && (
+                  <button
+                    onClick={() => handleStatusClick('done')}
+                    className="px-4 py-1.5 rounded-full bg-[#10b981]/20 hover:bg-[#10b981]/30 text-[#10b981] border border-[#10b981]/40 font-semibold text-xs cursor-pointer transition-all"
+                  >
+                    ✓ Mark Done
+                  </button>
+                )}
+                <button
+                  onClick={onClose}
+                  className="px-5 py-1.5 rounded-full bg-[#C9A86A] hover:bg-[#dfc188] text-black font-semibold text-xs shadow-[0_0_10px_rgba(201,168,106,0.25)] cursor-pointer transition-all"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>

@@ -1,0 +1,26 @@
+You have been dispatched by the Second Brain Autonomous Pipeline.
+
+Task ID: t-20260828-42c595
+Project: Project TITAN
+Task Title: Clean codebase: resolve doc sprawl, dead abstractions, and orphaned research artifacts
+Current Status: [backlog]
+
+Linked Upstream Spec [[spec-20260828-b4ef8d]]:
+# Spec: TITAN Multi-Market Alpha Rationale & Codebase Health
+
+## Overview
+Addresses core architectural root causes in Project TITAN: (1) Defining why/how we pursue cross-market alpha given recent negative results in FX classic alpha, equities factors, and crypto execution constraints to avoid the 'infra-before-alpha' trap. (2) Codebase cleanup to eliminate doc sprawl, prune dead abstractions, and isolate archived research programs.
+
+## Execution Phases
+- [ ] **Phase 1:** Phase 1: Multi-Market Alpha Thesis & Scope Definition
+- [ ] **Phase 2:** Phase 2: Doc Sprawl Consolidation & Dead Code Pruning
+- [ ] **Phase 3:** Phase 3: Wheel/PyTest Regression Verification
+
+
+Protocol Instructions for OPENCODE:
+1. Use second-brain MCP tools (brain_session_start, brain_check_files, brain_recall).
+2. If you are Codex (Planner): Draft invariants and approve spec/tasks. Do NOT write repetitive code.
+3. If you are opencode/Claude (Builder): Reserve target files (brain_reserve), implement code phase, run tests, and hand off to Antigravity (brain_session_end with target_agent="antigravity", brain_task_move to "review").
+4. If you are Antigravity (Reviewer): Audit diffs against spec, run tests, post report (brain_post), and move task to "done".
+
+Begin execution now.

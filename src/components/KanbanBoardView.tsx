@@ -16,6 +16,8 @@ interface KanbanBoardViewProps {
   contextMessages: ContextStreamMessage[];
   onOpenTaskModal: (task: KanbanTask) => void;
   onAddTask: () => void;
+  onTerminateTask?: (taskId: string) => void;
+  onDeleteTask?: (taskId: string) => void;
 }
 
 export const KanbanBoardView: React.FC<KanbanBoardViewProps> = ({
@@ -26,6 +28,8 @@ export const KanbanBoardView: React.FC<KanbanBoardViewProps> = ({
   contextMessages,
   onOpenTaskModal,
   onAddTask,
+  onTerminateTask,
+  onDeleteTask,
 }) => {
   useTrackComponentRender('KanbanBoardView');
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
@@ -253,18 +257,38 @@ export const KanbanBoardView: React.FC<KanbanBoardViewProps> = ({
                               )}
                             </div>
 
-                            {/* Move buttons for keyboard/mobile */}
-                            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            {/* Quick card action buttons */}
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (onTerminateTask) onTerminateTask(task.id);
+                                }}
+                                className="p-1 rounded hover:bg-red-500/20 text-white/40 hover:text-red-400 cursor-pointer"
+                                title="Terminate Task (Stop agent & complete)"
+                              >
+                                <span className="text-[11px]">🛑</span>
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (onDeleteTask) onDeleteTask(task.id);
+                                }}
+                                className="p-1 rounded hover:bg-red-500/20 text-white/40 hover:text-red-400 cursor-pointer"
+                                title="Delete Task"
+                              >
+                                <span className="material-symbols-outlined text-[12px]">delete</span>
+                              </button>
                               <button
                                 onClick={(e) => moveTask(task.id, 'left', e)}
-                                className="p-0.5 rounded hover:bg-white/10 text-white/40 hover:text-white"
+                                className="p-0.5 rounded hover:bg-white/10 text-white/40 hover:text-white cursor-pointer"
                                 title="Move Left"
                               >
                                 <span className="material-symbols-outlined text-[12px]">chevron_left</span>
                               </button>
                               <button
                                 onClick={(e) => moveTask(task.id, 'right', e)}
-                                className="p-0.5 rounded hover:bg-white/10 text-white/40 hover:text-white"
+                                className="p-0.5 rounded hover:bg-white/10 text-white/40 hover:text-white cursor-pointer"
                                 title="Move Right"
                               >
                                 <span className="material-symbols-outlined text-[12px]">chevron_right</span>
