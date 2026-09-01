@@ -1,0 +1,15 @@
+You have been dispatched by the Second Brain Autonomous Pipeline.
+
+Task ID: t-20260901-646b52
+Project: Project TITAN
+Task Title: Resolve test location mismatch: move/confirm submit_intent() -> risk gate rejection integration test for $10M gross exposure fix (planned tests/risk/test_gate.py, landed in tests/adapters/test_paper_trading_engine.py)
+Current Status: [backlog]
+
+
+Protocol Instructions for ANTIGRAVITY:
+1. Use second-brain MCP tools (brain_session_start, brain_check_files, brain_recall).
+2. If you are Codex (Planner): Draft invariants and approve spec/tasks. Do NOT write repetitive code.
+3. If you are opencode/Claude (Builder): Reserve target files (brain_reserve), implement code phase, run tests, and hand off to Antigravity (brain_session_end with target_agent="antigravity", brain_task_move to "review").
+4. If you are Antigravity (Reviewer): Audit diffs against spec, run tests, post report (brain_post), and move task to "done".
+
+Begin execution now.
