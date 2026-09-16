@@ -881,17 +881,17 @@ def cmd_dispatch(args, cfg):
 
     prompt_file.write_text(prompt, encoding="utf-8")
 
-    # Command map
+    # Command map (ponytail: & call operator required — pwsh cannot pipe directly into a .cmd shim)
     cli_map = {
-        "codex": f"Get-Content -Raw '{prompt_file}' | codex.cmd exec -",
-        "codex-cli": f"Get-Content -Raw '{prompt_file}' | codex.cmd exec -",
+        "codex": f"Get-Content -Raw '{prompt_file}' | & codex.cmd exec -",
+        "codex-cli": f"Get-Content -Raw '{prompt_file}' | & codex.cmd exec -",
         "claude": f"Get-Content -Raw '{prompt_file}' | claude.exe -p",
         "claude-code": f"Get-Content -Raw '{prompt_file}' | claude.exe -p",
-        "opencode": f"Get-Content -Raw '{prompt_file}' | opencode.cmd run",
+        "opencode": f"Get-Content -Raw '{prompt_file}' | & opencode.cmd run",
         "antigravity": f"Get-Content -Raw '{prompt_file}' | agy.exe exec",
         "agy": f"Get-Content -Raw '{prompt_file}' | agy.exe exec",
     }
-    pwsh_body = cli_map.get(target_agent, f"Get-Content -Raw '{prompt_file}' | opencode.cmd run")
+    pwsh_body = cli_map.get(target_agent, f"Get-Content -Raw '{prompt_file}' | & opencode.cmd run")
 
     if args.tab:
         print(f"Opening interactive tab for {target_agent}...")
