@@ -36,7 +36,7 @@ if sys.stdout and hasattr(sys.stdout, "reconfigure"):
     except Exception:
         pass
 
-VAULT = Path(os.environ.get("SECOND_BRAIN_VAULT", r"D:\projects\second-brain"))
+VAULT = Path(os.environ.get("SECOND_BRAIN_VAULT", str(Path(__file__).resolve().parent)))
 META_DIR = "meta"
 CLAIMS_DIR = "claims"
 SPECS_DIR = "specs"

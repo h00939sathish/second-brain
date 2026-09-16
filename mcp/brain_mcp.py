@@ -20,9 +20,12 @@ import sys
 from contextlib import redirect_stdout
 from types import SimpleNamespace
 
+from pathlib import Path
+
 from mcp.server.fastmcp import FastMCP
 
-VAULT = os.environ.get("SECOND_BRAIN_VAULT", r"D:\projects\second-brain")
+DEFAULT_VAULT = str(Path(__file__).resolve().parent.parent)
+VAULT = os.environ.get("SECOND_BRAIN_VAULT", DEFAULT_VAULT)
 sys.path.insert(0, VAULT)
 import engine  # noqa: E402
 
