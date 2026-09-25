@@ -1,0 +1,97 @@
+{
+  "version": 2,
+  "default": "global",
+  "workspaces": {
+    "global": {
+      "path": "/mnt/shared/projects/second-brain",
+      "description": "Cross-project truth. Included in every workspace's recall.",
+      "aliases": [
+        "all",
+        "shared"
+      ]
+    },
+    "second-brain": {
+      "name": "second-brain",
+      "path": "/mnt/shared/projects/second-brain",
+      "description": "The brain itself: engine, MCP, dashboard, agent setup",
+      "aliases": [
+        "brain-vault",
+        "second-brain"
+      ],
+      "keywords": [
+        "agent setup",
+        "brain guard",
+        "brain_mcp",
+        "engine.py",
+        "file lease",
+        "l0 pointers",
+        "search_index.db",
+        "second brain",
+        "second-brain",
+        "workspace marker"
+      ]
+    },
+    "jarvis": {
+      "name": "JARVIS",
+      "path": "/mnt/shared/projects/JARVIS/voice-assistant",
+      "description": "JARVIS voice assistant (Arch Linux, RTX 3050)",
+      "aliases": [
+        "jarvis",
+        "jarvis-voice",
+        "voice-assistant"
+      ],
+      "keywords": [
+        "horoscope",
+        "jarvis",
+        "llm router",
+        "ollama",
+        "operator dashboard",
+        "tts",
+        "voice assistant",
+        "wake word",
+        "whisper"
+      ]
+    },
+    "titan": {
+      "name": "Project TITAN",
+      "path": "/mnt/shared/projects/Trading/Project-TITAN",
+      "description": "Project TITAN quantitative trading platform",
+      "aliases": [
+        "project titan",
+        "project-titan",
+        "titan",
+        "titan-trading"
+      ],
+      "keywords": [
+        "adr",
+        "alpaca",
+        "backtest",
+        "bar frequency",
+        "binance",
+        "cross-market",
+        "crypto",
+        "drawdown",
+        "dukascopy",
+        "eq-micro",
+        "equities",
+        "fx carry",
+        "gross exposure",
+        "ibapi",
+        "intraday",
+        "kronos",
+        "maker",
+        "negative result",
+        "orderbook",
+        "paper trading",
+        "quant",
+        "risk gate",
+        "sharpe",
+        "signal decay",
+        "titan",
+        "tws",
+        "universe",
+        "us_sp50"
+      ]
+    }
+  }
+}

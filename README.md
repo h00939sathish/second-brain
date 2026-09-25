@@ -1,78 +1,273 @@
-# Second Brain — Multi-Agent Coordination & Execution Hub (v5.0)
+# Second Brain
 
-A unified platform combining a **shared memory truth store**, **Traycer-style upstream specs**, **agtx-style Kanban orchestration**, and a **Real-Time Mission Control Web Dashboard** with an autonomous division of labor across all coding agents.
+Shared memory, a task board and real coordination for every coding agent on this
+machine — Claude Code, Codex, opencode, Antigravity, Gemini, Crush, or a hosted agent
+that can only run a shell command.
 
----
-
-## 🚀 Mission Control Web Dashboard
-
-The web dashboard provides real-time observability over all active agents, running tasks, token consumption, and knowledge graphs:
+Vault: `/mnt/shared/projects/second-brain` (aka `~/Work/second-brain`)
 
 ```bash
-# Option 1: Run Full-Stack (Backend API + Frontend UI)
-python server.py
-# Open: http://localhost:8000
-
-# Option 2: Run Vite Frontend Dev Server with API Proxy
-npm install
-npm run dev
-# Open: http://localhost:3000
+brain doctor          # is everything wired up?
+brain whoami          # which agent am I, which workspace am I in
+brain brief           # my context for this session
+brain setup           # wire every agent CLI found on this machine
 ```
 
-### Dashboard Features:
-1. **Interactive Kanban Board:** Live 5-column board (`backlog` $\rightarrow$ `planning` $\rightarrow$ `running` $\rightarrow$ `review` $\rightarrow$ `done`) synced with `tasks/*.md`.
-2. **Token & Telemetry Analytics:** Real-time token consumption breakdown, cost calculator, and model latency charts.
-3. **Live Terminal & Log Stream:** Real-time stdout/stderr streaming from active agent processes.
-4. **Knowledge Graph & Specs Navigator:** Visual map linking upstream architecture specs, Kanban tasks, and persistent claims.
-5. **Concurrency & File Locks Monitor:** Live view of active agent sessions, file reservations, and handoffs.
+---
+
+## The 60-second version
+
+```bash
+brain start --agent opencode --task "fix the risk gate" --files src/gate.py
+#   ... work. Conflicting leases are refused, not warned about ...
+brain post "the gate needs a boundary test at exactly $10M"
+brain claim "gross exposure is capped at $10M in _current_gross_exposure()" \
+            --source src/titan/adapters/paper_trading_engine.py --tags risk,titan
+brain end <session-id> --summary "added the boundary test" \
+                       --target-agent agy --test-status "pytest: 12 passed"
+```
+
+Five rules, and they are **enforced**, not suggested:
+
+| Rule | Enforced by |
+|---|---|
+| Open a session before you write | `brain guard` hook (any agent with command hooks) and agent plugins |
+| A lease only clears the agent that holds it | `brain guard` matches the session's agent, or fails the write on the specific leased path |
+| Do not touch files another agent holds | `brain start` / `brain reserve` refuse with `LeaseConflict` |
+| Record what you proved | `brain claim` requires text; `brain review` is the only thing that marks it verified |
+| Hand off explicitly | `brain end --target-agent` |
+| Do not close a card you did not verify | the move to `done` is refused without review evidence (`ReviewGate`) |
+
+Refusals exit non-zero, are returned as HTTP 409 by the API, and are reported to MCP
+clients with a `REFUSED` prefix, so an agent cannot miss them. `BRAIN_BYPASS=1` (or
+`--force` on the specific command) is the documented break-glass path.
 
 ---
 
-## 🤖 Autonomous Superpower Roles
+## Workspaces: keeping projects apart
 
-- **Lead Architect & Arbiter:** **GPT 5.6 (Codex)** — High-density logic, constraints, invariant specification, final sign-off.
-- **Context Analyst & Final Reviewer:** **Gemini 3.7 Flash (Antigravity)** — Ingests full 1M+ token repo context to critique specs during planning; audits complete git diffs and runs test suites during review.
-- **Core Builders (Heavy Lifters):** **opencode & Claude Code** — Executes mechanical file edits, refactoring, package installs, and local test runs.
-- **Invariant:** Neither Codex nor AGY performs repetitive heavy lifting; heavy code generation is offloaded to Builders.
+Work is scoped to a **workspace**, a named slice of the vault bound to a directory.
+Everything an agent writes while working there stays there:
+
+```
+workspaces/
+  jarvis/         claims/ specs/ tasks/ sessions/ context/ logs/
+  titan/
+  second-brain/
+  global/         shared truth, visible from every workspace
+```
+
+The workspace is detected from the working directory, in this order:
+
+1. `--workspace` / tool argument
+2. `$SECOND_BRAIN_WORKSPACE`
+3. `.brain-workspace` marker file in the cwd or any parent
+4. `git config brain.workspace`
+5. the longest registered workspace path that prefixes the cwd
+6. `global`
+
+So an agent that has never been told anything, sitting in `Work/JARVIS/voice-assistant`,
+reads and writes the `jarvis` workspace automatically. A claim written with
+`--scope global` is shared with every workspace — that is how a fact learned in one
+project stays useful in another.
+
+```bash
+brain workspaces list
+brain workspaces add trading ~/Work/Trading/Project-TITAN --description "TITAN"
+brain workspaces bind trading ~/Work/Trading/Project-TITAN
+brain workspaces alias trading --display-name "Project TITAN" --alias project-titan
+brain workspaces merge old-slug titan
+```
+
+Reads are scoped to **your workspace plus `global`**. `--all-workspaces` overrides that.
 
 ---
 
-## ⚙️ Core Architecture & CLI
+## What is in a workspace
 
-1. **Autonomous Daemon (`engine.py daemon`)**:
-   - Continuously watches the board and auto-chains tasks hands-free:
-     $$\text{Task in } [\text{planning}] \xrightarrow{\text{auto}} \textbf{Codex} \xrightarrow{\text{moves to } [\text{running}]} \textbf{opencode} \xrightarrow{\text{moves to } [\text{review}]} \textbf{Antigravity} \xrightarrow{} [\text{done}]$$
+| Directory | What it holds | Lifetime |
+|---|---|---|
+| `claims/` | Durable facts: text, evidence, confidence, status, tags | permanent until superseded/disputed |
+| `specs/` | Upstream design intent and phases, written before code | until the work lands |
+| `tasks/` | Kanban cards: `backlog → planning → running → review → done` | until done |
+| `sessions/` | Who worked, on what, holding which file leases, ending in a handoff | audit trail |
+| `context/` | Scratchpad notes visible to other agents right now | archived after 7 days |
+| `logs/` | Per-dispatch prompt, streamed log, and a `.run.json` with the real exit code | disposable |
 
-2. **Upstream Specs & Phases (`specs/*.md`)** *(Traycer pattern)*:
-   - Spec-first development: architectural intent, constraints, and phased milestones.
-
-3. **Git-Backed Kanban Tasks (`tasks/*.md`)** *(agtx pattern)*:
-   - Pipeline: `backlog` $\rightarrow$ `planning` $\rightarrow$ `running` $\rightarrow$ `review` $\rightarrow$ `done`.
-
-4. **Coordination & Concurrency (`sessions/*.md`)**:
-   - Agent presence, file leases/locks, git branch/worktree tracking, and structured handoffs.
-
-5. **Knowledge & Claims (`claims/*.md`)**:
-   - Long-term facts, rules, and architecture decisions with truth lifecycle (`active` $\rightarrow$ `superseded` / `expired` / `disputed`).
-   - Fast Search: Indexed via **SQLite FTS5** with BM25 relevance ranking.
-
-6. **L0 Auto-Injection (`meta/l0_pointers.md`)**:
-   - Auto-injected context pointers (budget-enforced $\le 2.2$KB).
+Claims are markdown with escaped frontmatter: `dumps(parse(text)) == text` holds for
+every value, including newlines, `---` and colons. That property is tested.
 
 ---
 
-## 📡 REST API Endpoints (`server.py`)
+## Memory tiers
 
-- `GET /api/status`: Vault health, active task count, L0 byte budget.
-- `GET /api/tasks`: List all Kanban tasks with agent assignments.
-- `POST /api/tasks`: Create a new task.
-- `POST /api/tasks/:id/move`: Advance task status.
-- `GET /api/specs`: List all upstream architecture specs.
-- `GET /api/claims`: List all permanent knowledge claims.
-- `GET /api/graph`: Graph nodes & edge connections for visual rendering.
-- `GET /api/leases`: Live file reservation leases.
-- `GET /api/handoffs`: Audit trail of cross-agent task handoffs.
-- `GET /api/context`: Shared ephemeral bulletin notes.
-- `GET /api/logs`: Real-time agent execution log entries.
-- `POST /api/dispatch`: Directly trigger an agent for a specific task.
-- `POST /api/auto-cycle`: Auto-dispatch the highest-priority actionable task.
+* **L0** — a compact brief, per workspace, regenerated by `brain sweep`, capped at
+  2200 bytes. It is split into two labelled sections on purpose — `## Knowledge —
+  <workspace>` (your own work, first) and `## Shared truth — from global` — so an agent
+  can see at a glance what belongs to its project and what everyone shares.
+  `brain brief` prints yours; `meta/l0_pointers.md` is the cross-workspace version for
+  agents that read a fixed file.
+* **L1** — this vault.
+* **L2** — raw agent transcripts. Never read or written here.
+
+Search is SQLite FTS5 (BM25) over an incrementally maintained index in
+`meta/search_index.db`: a write reindexes exactly one document, and a read does a
+cheap stat-walk and reparses only files that changed. If your SQLite lacks FTS5 the
+index degrades to `LIKE` scans instead of failing.
+
+---
+
+## Reaching a new agent
+
+Four layers, cheapest first, so anything that can run a command works. One
+`brain setup` installs all of them, and no layer needs per-agent hand-editing.
+
+1. **`brain` on PATH** — the shim is written to `~/.local/bin/brain` and needs no
+   configuration at all. Any agent that can run a shell command can use the brain.
+2. **The skill** — `SKILL.md` is written to `~/.agents/skills/second-brain/` and
+   `~/.claude/skills/second-brain/`, and into each bound project's `.agents/skills/`
+   and `.claude/skills/`. This is the layer that needs no wiring whatsoever: Freebuff,
+   Claude Code and anything else following the `SKILL.md` convention *discover* the
+   skill themselves and load it when the task calls for shared state. It is also the
+   only layer that works for a hosted agent we cannot configure, because the client
+   does the discovery.
+3. **MCP** — `brain setup` writes the server entry into whatever config file each
+   installed agent actually reads: `~/.claude.json` (+ a `PreToolUse` guard hook),
+   `~/.codex/config.toml`, `~/.config/opencode/opencode.json`, `~/.gemini/config/mcp_config.json`,
+   `~/.config/crush/crush.json`, and the vault's `.mcp.json`.
+   Every write is idempotent, backs the original up first, and preserves its mode.
+4. **Paste-in brief** — for anything left over:
+
+   ```bash
+   brain bootstrap            # the full protocol, ready to paste
+   curl -s localhost:8000/agent/bootstrap
+   ```
+
+Binding a project installs the pointer and the project-local skill in one step:
+
+```bash
+brain workspaces bind jarvis ~/Work/JARVIS/voice-assistant --skill
+```
+
+That writes `.brain-workspace`, appends the pointer to `AGENTS.md`/`CLAUDE.md` if they
+exist, drops the skill into `.agents/skills/` and `.claude/skills/`, and registers the
+marker plus both skill directories in `.git/info/exclude` — machine-local state, so
+`git status` in a repository the brain does not own stays clean.
+
+`brain doctor` reports whether the skill and the shim are actually in place.
+
+---
+
+## Commands
+
+```
+Onboarding   init  migrate  repair  doctor  setup  bootstrap  whoami  brief
+Knowledge    claim  review  supersede  dispute  promote  recall  related  verify
+Board        spec-create  specs  task-create  move  tasks  route  next
+Coordination start  update  reserve  check-files  end  sessions  post  read  guard
+Workspaces   workspaces [list|add|bind|alias|merge|remove|default]
+Execution    dispatch  auto-cycle  runs  daemon  serve
+Maintenance  status  sweep  reindex --verbose
+```
+
+Every command takes `-w/--workspace` and `--json`. `brain <cmd> --help` for details.
+
+```bash
+brain status                     # health, board, leases, daemon, L0 budget
+brain tasks --all-workspaces     # the whole board
+brain recall "risk gate"         # BM25, scoped to your workspace + shared
+brain recall "risk gate" --all-workspaces --status active
+brain dispatch <task-id> --tab   # run the assigned agent in a terminal window
+brain auto-cycle                 # dispatch the next actionable card, exactly once
+brain daemon --interval 15       # keep the board moving; writes a heartbeat
+brain sweep --commit             # close stale sessions, flag stale claims, rebuild L0
+brain serve                      # Mission Control API + dashboard on :8000
+```
+
+### Dispatch and the daemon
+
+Agents are resolved with `shutil.which` from one table, so the same code runs on
+Linux, macOS and Windows: `codex exec -`, `opencode run`, `claude -p`, `agy exec`,
+`gemini`, `crush run`. The prompt is fed on **stdin** — no shell, no quoting, no
+`.cmd` shim. The child inherits `SECOND_BRAIN_VAULT`, `SECOND_BRAIN_WORKSPACE` and
+`~/.local/bin` on `PATH`.
+
+A card with a live session or a live process is **skipped**, and a card that fails to
+advance past the same status three times trips a circuit breaker — so `auto-cycle` can
+be called repeatedly (by a human, the API, or the daemon) without spawning duplicate
+agents. Real exit codes land in `workspaces/<ws>/logs/<task>.run.json`.
+
+---
+
+## Mission Control API
+
+```bash
+brain serve            # http://127.0.0.1:8000  (BRAIN_HOST/PORT to override)
+```
+
+`GET /agent/bootstrap` (text), `GET /api/health`, `/api/status`, `/api/workspaces`,
+`/api/tasks`, `/api/specs`, `/api/claims`, `/api/recall`, `/api/graph`, `/api/leases`,
+`/api/handoffs`, `/api/context`, `/api/logs`, `/api/runs`, `/api/brief`.
+`POST /api/tasks`, `/api/tasks/:id/move|terminate`, `/api/dispatch`, `/api/auto-cycle`,
+`/api/claims`, `/api/notes`, `/api/sweep`, `/api/setup`. `DELETE /api/tasks/:id`.
+
+Every list endpoint accepts `?workspace=` and `?all=1`. Refusals come back as **409**
+with the reason, so the UI can show *why* a card cannot move.
+
+The dashboard reports only measured values: `daemon_active` comes from the daemon
+heartbeat, log timestamps come from the log file's mtime, and there is no invented
+per-task token cost.
+
+---
+
+## Development
+
+```bash
+python3 -m unittest discover -s tests -t .   # 95+ tests, stdlib only
+npm run lint                                  # tsc --noEmit
+npm run build                                 # dashboard bundle into dist/
+```
+
+Layout:
+
+```
+engine.py            compatibility shim + CLI entry point (`python engine.py status`)
+brain/
+  const.py           tunables, agent CLI table, role map, schemas
+  errors.py          SchemaError, LeaseConflict, ReviewGate, NotFound
+  paths.py           vault resolution, atomic writes, advisory lock
+  frontmatter.py     escaped frontmatter with guaranteed round-trip
+  workspaces.py      registry, cwd auto-detection, aliases, merge
+  index.py           incremental FTS5 index (BM25) used for reads
+  vcs.py             scoped, checked git commits
+  store.py           ids/paths/parse/validate/leases + repair_malformed
+  knowledge.py       claim lifecycle, recall, verify
+  board.py           specs, tasks, review gate, routing
+  coordination.py    sessions, leases, scratchpad
+  agents.py          CLI discovery + per-agent self-configuration
+  dispatch.py        portable background dispatch
+  daemon.py          board driver, heartbeat, circuit breaker
+  l0.py              ranked brief generation
+  maintenance.py     sweep
+  http.py            Mission Control API
+  cli.py             argparse front-end
+mcp/brain_mcp.py     MCP bridge (30 tools) -> brain.cli
+tests/               unittest suite against a throwaway vault
+```
+
+The MCP bridge delegates to `brain.cli`, so the MCP surface and the CLI cannot drift.
+
+---
+
+## Operating notes
+
+* **Encoding.** Every write goes through `atomic_write` (tmp + rename, LF, UTF-8), so a
+  reader never sees a half-written record and CRLF files written on Windows still parse.
+* **Commits.** `vcs.commit` stages **explicit paths** and checks the return code. It
+  never runs `git add -A`, so an agent mid-edit elsewhere in the vault cannot be swept
+  into a bookkeeping commit. Auto-commit is policy (`vcs.auto_commit`), not a side
+  effect of every command.
+* **Quarantine.** `brain repair` moves the original of a repaired record to
+  `meta/quarantine/` rather than overwriting it.
+* **Locking.** A single advisory lock (`.lock`) serialises mutating commands;
+  read-only commands and the dashboard deliberately do not take it.

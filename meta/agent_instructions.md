@@ -1,49 +1,51 @@
-# Agent Integration Instructions (v4.2)
+# Agent Integration
 
-> Multi-agent division of labor & execution protocol for Second Brain.
+This file used to hold a hand-maintained copy of the multi-agent protocol. It drifted
+from the implementation, so the protocol now has exactly one source of truth:
 
-## The Autonomous Multi-Agent Cycle
-
-```
-[User Prompts Any Agent]
-          │
-          ▼
-   [brain_cycle_route]
-   ├── Trivial Task    ──► Direct execution (zero pipeline overhead)
-   └── Complex Feature ──► 4-Stage Autonomous Pipeline:
+```bash
+brain bootstrap                        # print it (also written to AGENTS.md)
+curl -s localhost:8000/agent/bootstrap # same text over HTTP
 ```
 
-### Role Division & Invariants:
+`brain setup` regenerates `AGENTS.md`, writes the `SKILL.md` that agents discover on
+their own, and registers the MCP server in every agent CLI it finds on this machine, so
+nothing here needs to be copied by hand. `brain doctor` tells you whether each layer is
+actually in place.
 
-1. **Stage 1: The Planning Debate (GPT 5.6 & Gemini 3.7 Flash)**
-   - **Codex (GPT 5.6):** Formulates concise, dense architectural invariants & constraints (conserving tokens).
-   - **Antigravity CLI (Gemini 3.7 Flash):** Ingests whole-codebase context (1M context window), critiques the spec for edge cases, and refines execution phases.
-   - **Result:** Codex approves and creates the upstream spec (`brain_spec_create`) and generates Kanban tasks (`brain_task_create`).
-   - ⚠️ **INVARIANT:** Neither Codex nor AGY writes boilerplate code or does repetitive line edits.
+## The protocol, in short
 
-2. **Stage 2: Heavy Lifting (opencode / Claude Code)**
-   - **Builders:** Claim tasks in `running`, reserve file leases (`brain_reserve`), do all mechanical file edits, refactoring, package installs, and local test runs.
-   - On phase completion, end session with handoff to Antigravity (`brain_task_move -> review`).
+1. `brain start --agent <you> --files <paths you will write>` — leases are enforced.
+2. Work. `brain post "..."` for findings other agents need now.
+3. `brain claim "..." --source <path>` for anything durable you proved;
+   `brain review <id>` once you have checked the source.
+4. `brain end <id> --target-agent <next> --test-status "..."` — hand off explicitly.
+5. Cards move `backlog → planning → running → review → done`; the move to `done`
+   requires the evidence from step 4.
 
-3. **Stage 3: Final Review & Verification (Gemini 3.7 Flash / Antigravity CLI)**
-   - **Antigravity:** Ingests full git diffs and full repo context (1M tokens).
-   - Audits for architectural drift against the debated spec.
-   - Executes comprehensive test suites (`pytest`, `cargo`, `npm`).
-   - Posts structured verification report (`brain_post`) and advances task to `done`.
+Roles are declared in `brain/const.py` (`AGENT_ROLES`) and are advisory except for the
+review gate, which is enforced in `brain/board.py`.
 
-4. **Stage 4: Sign-off (Codex / GPT 5.6)**
-   - Codex validates the review report and commits any permanent architectural claims into `claims/*.md`.
+## Workspaces
 
----
+You are scoped to a workspace automatically, from your working directory
+(`.brain-workspace`, `git config brain.workspace`, or the registered project path).
+`brain whoami` tells you which one. Claims written with `--scope global` are readable
+from every workspace; everything else stays inside yours.
 
-## Tool Quick Reference (26 Tools)
+Your brief keeps the two apart, so you never have to guess which is which:
 
-| Category | Tools |
-|---|---|
-| **Autonomous Cycle** | `brain_cycle_route`, `brain_cycle_next` |
-| **Upstream Specs (Traycer)** | `brain_spec_create`, `brain_specs` |
-| **Kanban Tasks (agtx)** | `brain_task_create`, `brain_task_move`, `brain_tasks` |
-| **Presence & Sessions** | `brain_dashboard`, `brain_session_start`, `brain_session_update`, `brain_session_end`, `brain_sessions` |
-| **Concurrency & Locks** | `brain_reserve`, `brain_check_files` |
-| **Context & Scratchpad** | `brain_post`, `brain_read`, `brain_promote` |
-| **Knowledge & Claims** | `brain_recall` *(BM25)*, `brain_claim`, `brain_supersede`, `brain_dispute`, `brain_verify`, `brain_related`, `brain_status`, `brain_sweep` |
+```
+## Knowledge — jarvis (5)                       <- this project's own work
+## Shared truth — from `global` (19)            <- what every workspace can see
+```
+
+If a record landed in the wrong place, `brain reclassify --dry-run` shows what would
+move and `brain reclassify` moves it.
+
+## The guard hook
+
+`brain guard` runs before an edit. It clears you when the active session is *yours* (or
+the human operator's), and otherwise refuses only the paths that are actually leased by
+somebody else — parallel work on different files is allowed. Pass `--files a.py,b.py`
+when you call it directly; clients that pipe a JSON payload can use `--stdin-json`.

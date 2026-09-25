@@ -1,0 +1,38 @@
+version: "1"
+name: second-brain-core-team
+summary: Standard engineering fleet for the Second Brain control plane
+
+seats:
+  codex:
+    role: planner
+    edges:
+      - kind: delegates_to
+        to: opencode
+      - kind: delegates_to
+        to: claude
+
+  opencode:
+    role: builder
+    edges:
+      - kind: delegates_to
+        to: agy
+      - kind: escalates_to
+        to: codex
+
+  claude:
+    role: builder
+    edges:
+      - kind: delegates_to
+        to: agy
+      - kind: escalates_to
+        to: codex
+
+  agy:
+    role: reviewer
+    edges:
+      - kind: can_observe
+        to: opencode
+      - kind: can_observe
+        to: claude
+      - kind: escalates_to
+        to: codex

@@ -19,8 +19,49 @@
     "default_limit": 20,
     "ttl_days": 7
   },
+  "pipeline": {
+    "roles": {
+      "codex": "planner",
+      "opencode": "builder",
+      "claude": "builder",
+      "claude-code": "builder",
+      "crush": "builder",
+      "antigravity": "reviewer",
+      "agy": "reviewer",
+      "gemini": "reviewer",
+      "hermes": "orchestrator",
+      "freebuff": "builder",
+      "operator": "operator"
+    },
+    "complex_keywords": [
+      "refactor",
+      "migrate",
+      "architecture",
+      "implement",
+      "build",
+      "feature",
+      "pipeline",
+      "database",
+      "redesign",
+      "endpoint",
+      "oauth",
+      "jwt",
+      "schema",
+      "concurrency",
+      "migration",
+      "breaking change"
+    ],
+    "complexity_threshold": 3
+  },
   "search": {
     "engine": "sqlite_fts5",
     "algorithm": "bm25"
+  },
+  "vcs": {
+    "auto_commit": true
+  },
+  "enforce": {
+    "lease_conflicts": true,
+    "review_gate": true
   }
 }

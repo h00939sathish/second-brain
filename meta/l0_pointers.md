@@ -1,21 +1,25 @@
-# Brain (auto-generated 2026-09-16T06:37:40Z)
-# Call brain_session_start on session begin. brain_recall for knowledge.
+# Second Brain — all workspaces (2026-09-24T18:47:20Z)
+# Start here: `brain brief` | `brain start --agent <you> --files ...` | `brain recall "..."`
 
-## Active Tasks
-- [RUNNING] [antigravity] t-20260901-646b52: Resolve test location mismatch: move/confirm submit_intent()
+## Live sessions
+- claude → second-brain: Implement durable queue, workflow, restore, typed… [leases: ['brain/queue.py', 'brain/workflow.py'…] (3h ago)
+- qoder → jarvis: JARVIS model research (lease refresh) — forensics done… [leases: ['JARVIS_MODEL_REQUIREMENTS.md', 'JARVIS_TASK_MATRIX.md'…] (2d ago)
+- claude → jarvis: Implement first phase of JARVIS deterministic fast command… [leases: ['assistant/command_matcher.py'…] (2d ago)
+- qoder → jarvis: Codebase-first local model research & selection for JARVIS… [leases: ['JARVIS_MODEL_REQUIREMENTS.md', 'JARVIS_TASK_MATRIX.md'…] (2d ago)
 
-## Knowledge (40 active)
-- [active] CRYPTO-004 Finding #1 Solved: Continuous mark-to-market total equity tracking and daily calendar resampling (sqrt(365... [[20260901-ffca4e]]
-- [active] EQ-Micro-001 Step 0 Complete: Created us_sp50_liquid_intraday_v1.json manifest declaring 5-minute bar frequency, ETF ... [[20260901-df55ef]]
-- [active] TITAN Research Findings 2026-09-01: (1) CRYPTO-004 (Maker Basis Carry): Proven that maker execution dramatically beat... [[20260901-c5a60f]]
-- [active] Canonical CRYPTO-004 evidence bundle sealed from 4,380 real Binance Vision events (2,190 IS + 2,190 OOS across BTCUSD... [[20260901-5a5876]]
-- [active] TITAN Sprint Completed 2026-09-01: (1) CRYPTO-004 Live Public WebSocket Shadow Feed & Runner implemented (src/titan/r... [[20260901-5494e3]]
-- [active] TITAN Dual-Sprint Complete 2026-09-01: (1) ADR-022, ADR-023, and ADR-032 (CRYPTO-004 Shadow Deployment) ratified as A... [[20260901-4fa3a9]]
-- [active] $10M gross exposure risk-gate coverage gap is CLOSED. tests/adapters/test_paper_trading_engine.py now has 5 new verif... [[20260901-33835e]]
-- [active] EQ-Micro-001 Sealed Negative Result: Evaluated 2020-2024 Alpaca 5m dataset across 54 assets (237,294 aligned bars). G... [[20260901-2ece0c]]
-- [active] Test retrieval [[20260831-2c4745]]
-- [active] JARVIS runs on Arch Linux with an RTX 3050 4GB GPU and i5-13420H CPU [[20260830-0d263c]]
-- [active] Telegram: horoscope→-1004366479436; trade reports (08:00/EOD 01:35 IST)→-1004335891979. [[20260829-6ac8d4]]
-- [active] TITAN status 2026-08-28: (1) Crypto research program under ADR-029 closed into absorbing negative_result states (CRYP... [[20260828-6d78d7]]
-- [active] Codebase cleanup review for Project TITAN completed: doc sprawl consolidated, 37 orphaned fix scripts pruned, strateg... [[20260828-5c6660]]
-- ... and 40 more (run brain_recall)
+## Board (review: 3 | done: 6)
+- [REVIEW] t-20260901-81d55b: Fix brain_dispatch: opencode.cmd invocation fails with PowerShell…
+- [REVIEW] t-20260924-9d5bfc: TRUST BOUNDARY HARDENING v1
+- [REVIEW] t-20260924-79a98b: Wire the two orphaned CLI handlers (deliberate, who-working) and…
+
+## Recent context
+- [h00939] commit 77ca9e9: ctl: Updated Python executable resolution to use .venv [files… (jarvis)
+- [h00939] commit ffaf9be: chore(brain): global hook backup + second-brain protocol docs [files… (jarvis)
+- [qoder] @agy standing down from brain/cli.py and tests/test_cli.py -- the human said you own the… (second-brain)
+
+## Knowledge (67 active claims across 4 workspaces)
+- Plan-debate pipeline: nemotron-3-ultra + minimax-m3 planners debate, gemini final review, deepseek builds via plan_debate.py… [[20260806-113234]]
+- Postgres port 5433 has schema v2 applied; connection pool max=10 [[20260827-bab441]]
+- OmniRoute (v3.8.48, localhost:20128, data C:\Users\h0093\.omniroute) failures diagnosed 2026-08-18: (1) Hermes default… [[20260818-a730d9]]
+- Bug bounty/OSINT PLAN GATE (compulsory): before agent-driven recon on a new target run python ~/.hermes/scripts/bb_plan.py --target… [[20260810-41e25d]]
+- … and 63 more — run `brain recall "<question>"`
