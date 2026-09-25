@@ -22,3 +22,21 @@ coverage/
 .env.local
 .env.production
 !.env.example
+# brain state (never commit)
+.lock
+*.tmp
+meta/search_index.db*
+meta/daemon_heartbeat.json
+*/logs/
+*.log
+
+# timestamped backups made by `brain setup` before it edits a config
+*.brainbak-*
+
+# Attestation trust root: the private key signs the brain's own receipts, so it
+# must never be committed. The public key is the pin other agents verify against.
+.trust/*
+!.trust/attest.pub
+
+# Test-run transcripts can contain command output from arbitrary cwd
+workspaces/*/receipts/
