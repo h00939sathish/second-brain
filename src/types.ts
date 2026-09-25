@@ -5,7 +5,8 @@ export type NavigationTab =
   | 'graph' 
   | 'logs' 
   | 'specs' 
-  | 'network';
+  | 'network'
+  | 'deliberation';
 
 export type AgentRoleType = 'planning' | 'building' | 'reviewing' | 'qa' | 'deployment';
 
@@ -162,4 +163,67 @@ export interface DaemonLoadInfo {
   loadPercent: number;
   activeThreads: number;
   memoryUsage: string;
+}
+
+export interface SquadData {
+  name: string;
+  workspace: string;
+  roles: Record<string, string>;
+  configured: boolean;
+  active_sessions?: Record<string, any>;
+  routing_matrix?: Record<string, string>;
+}
+
+export interface DeliberationMessage {
+  message_id: string;
+  task_id: string;
+  round: number;
+  timestamp: string;
+  sender: string;
+  recipient: string;
+  type: string;
+  severity: string;
+  body: string;
+  references: string[];
+}
+
+export interface DeliberationProposal {
+  proposal_id: string;
+  agent: string;
+  plan: string[];
+  files_expected: string[];
+  risks: string[];
+  questions: string[];
+  status: string;
+}
+
+export interface DeliberationRoomData {
+  context: {
+    task_id: string;
+    title: string;
+    workspace: string;
+    project: string;
+    risk: string;
+    mode: string;
+    domains: string[];
+    status: string;
+    current_round: number;
+    max_rounds: number;
+    required_participants: string[];
+    required_acknowledgements: number;
+    created_at: string;
+    updated_at: string;
+  };
+  proposals: DeliberationProposal[];
+  presence: Record<string, { agent: string; state: string; focus: string; files: string[]; updated_at: string }>;
+  messages: DeliberationMessage[];
+  decision?: {
+    decision_id: string;
+    task_id: string;
+    status: string;
+    authorized_files: string[];
+    agreed_plan: string[];
+    participants: string[];
+    timestamp: string;
+  };
 }

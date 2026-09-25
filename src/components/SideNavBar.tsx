@@ -27,6 +27,11 @@ export const SideNavBar: React.FC<SideNavBarProps> = ({
       icon: 'view_kanban',
     },
     {
+      tab: 'deliberation' as NavigationTab,
+      label: 'Squad & Deliberation',
+      icon: 'forum',
+    },
+    {
       tab: 'workflow' as NavigationTab,
       label: 'Workflow Orchestrator',
       icon: 'account_tree',

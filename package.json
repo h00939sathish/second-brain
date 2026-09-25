@@ -7,9 +7,15 @@
     "dev": "vite --port=3000 --host=0.0.0.0",
     "build": "vite build",
     "preview": "vite preview",
-    "server": "python server.py",
-    "start": "python server.py",
-    "lint": "tsc --noEmit"
+    "server": "python3 server.py",
+    "start": "python3 server.py",
+    "lint": "tsc --noEmit",
+    "test": "python3 -m unittest discover -s tests -t .",
+    "doctor": "python3 engine.py doctor",
+    "status": "python3 engine.py status",
+    "brain": "python3 engine.py",
+    "setup": "python3 engine.py setup",
+    "sweep": "python3 engine.py sweep --commit"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

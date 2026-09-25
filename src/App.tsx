@@ -29,6 +29,7 @@ import { LiveTerminalLogsView } from './components/LiveTerminalLogsView';
 import { KnowledgeGraphView } from './components/KnowledgeGraphView';
 import { SpecsEditorView } from './components/SpecsEditorView';
 import { NetworkLoadBalancerView } from './components/NetworkLoadBalancerView';
+import { ChatroomDeliberationView } from './components/ChatroomDeliberationView';
 import { DeployAgentModal } from './components/DeployAgentModal';
 import { SearchModal } from './components/SearchModal';
 import { SettingsModal } from './components/SettingsModal';
@@ -40,7 +41,16 @@ export const App: React.FC = () => {
   // Navigation & Brand state
   const [currentTab, setCurrentTab] = useState<NavigationTab>('kanban');
   const [brandVariant, setBrandVariant] = useState<'secondBrain' | 'antigravity'>('secondBrain');
-  const [daemonSeconds, setDaemonSeconds] = useState(15);
+
+  // Scope: '' means "everything" (the API's ?all=1 view). Reported by the backend,
+  // never guessed here.
+  const [workspace, setWorkspace] = useState<string>('');
+  const [workspaces, setWorkspaces] = useState<string[]>([]);
+  const [daemon, setDaemon] = useState<{ active: boolean; detail: string }>({
+    active: false,
+    detail: 'unknown',
+  });
+  const [vaultPath, setVaultPath] = useState<string>('');
 
   // Workflow Pipeline State
   const [pipeline, setPipeline] = useState<WorkflowPipeline>(INITIAL_PIPELINE);
@@ -66,18 +76,31 @@ export const App: React.FC = () => {
   const [docsSupportType, setDocsSupportType] = useState<'docs' | 'support' | null>(null);
   const [selectedTask, setSelectedTask] = useState<KanbanTask | null>(null);
 
-  // Live Second Brain Backend API Polling
+  // Live Second Brain Backend API Polling. Every request is scoped to the selected
+  // workspace so the board, leases and logs cannot disagree with each other.
   useEffect(() => {
+    const scope = workspace
+      ? `?workspace=${encodeURIComponent(workspace)}`
+      : '?all=1';
     const fetchLiveVaultData = async () => {
       try {
-        const [tasksRes, leasesRes, handoffsRes, contextRes, logsRes, graphRes] = await Promise.all([
-          fetch('/api/tasks').catch(() => null),
-          fetch('/api/leases').catch(() => null),
-          fetch('/api/handoffs').catch(() => null),
-          fetch('/api/context').catch(() => null),
-          fetch('/api/logs').catch(() => null),
-          fetch('/api/graph').catch(() => null),
-        ]);
+        const [statusRes, tasksRes, leasesRes, handoffsRes, contextRes, logsRes, graphRes] =
+          await Promise.all([
+            fetch('/api/status').catch(() => null),
+            fetch(`/api/tasks${scope}`).catch(() => null),
+            fetch(`/api/leases${scope}`).catch(() => null),
+            fetch(`/api/handoffs${scope}`).catch(() => null),
+            fetch(`/api/context${scope}`).catch(() => null),
+            fetch(`/api/logs${scope}`).catch(() => null),
+            fetch(`/api/graph${scope}`).catch(() => null),
+          ]);
+
+        if (statusRes && statusRes.ok) {
+          const statusData = await statusRes.json();
+          setDaemon(statusData.daemon ?? { active: false, detail: 'unreachable' });
+          setWorkspaces(statusData.workspaces ?? []);
+          setVaultPath(statusData.vault ?? '');
+        }
 
         if (tasksRes && tasksRes.ok) {
           const tasksData = await tasksRes.json();
@@ -133,16 +156,7 @@ export const App: React.FC = () => {
     fetchLiveVaultData();
     const interval = setInterval(fetchLiveVaultData, 3000);
     return () => clearInterval(interval);
-  }, []);
-
-  // Daemon Heartbeat timer
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setDaemonSeconds((s) => s + 1);
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, []);
+  }, [workspace]);
 
   // Keyboard shortcut for Cmd+K Search
   useEffect(() => {
@@ -274,7 +288,10 @@ export const App: React.FC = () => {
         onOpenSearch={() => setIsSearchOpen(true)}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onOpenNotifications={() => setIsNotificationsOpen(true)}
-        activeDaemonSeconds={daemonSeconds}
+        daemon={daemon}
+        workspaces={workspaces}
+        workspace={workspace}
+        onSelectWorkspace={setWorkspace}
         brandVariant={brandVariant}
       />
 
@@ -315,10 +332,19 @@ export const App: React.FC = () => {
             />
           )}
 
+          {currentTab === 'deliberation' && (
+            <ChatroomDeliberationView
+              workspace={workspace}
+              workspaces={workspaces}
+              tasks={kanbanTasks}
+            />
+          )}
+
           {currentTab === 'telemetry' && (
             <TokenTelemetryView
               consumptionData={consumptionData}
               inferences={inferences}
+              vaultPath={vaultPath}
             />
           )}
 

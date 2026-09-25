@@ -5,12 +5,14 @@ import { useTrackComponentRender } from '../hooks/usePerformanceProfiler';
 interface TokenTelemetryViewProps {
   consumptionData: ModelConsumptionPoint[];
   inferences: InferenceRecord[];
+  vaultPath?: string;
   onSelectInference?: (item: InferenceRecord) => void;
 }
 
 export const TokenTelemetryView: React.FC<TokenTelemetryViewProps> = ({
   consumptionData,
   inferences,
+  vaultPath,
 }) => {
   useTrackComponentRender('TokenTelemetryView');
   const [timeRange, setTimeRange] = useState<TimeRange>('24H');
@@ -23,11 +25,17 @@ export const TokenTelemetryView: React.FC<TokenTelemetryViewProps> = ({
       .catch(() => null);
   }, []);
 
-  const totalClaims = vaultStatus?.claims_total ?? 30;
-  const activeClaims = vaultStatus?.claims_active ?? 27;
-  const l0Bytes = vaultStatus?.l0_bytes ?? 2066;
+  // No invented fallbacks: when the backend has not answered yet, say so rather than
+  // printing a plausible-looking number.
+  const backendUp = vaultStatus !== null;
+  const totalClaims = vaultStatus?.claims_total;
+  const activeClaims = vaultStatus?.claims_active;
+  const l0Bytes = vaultStatus?.l0_bytes;
   const l0Budget = vaultStatus?.l0_budget ?? 2200;
-  const l0Percent = Math.round((l0Bytes / l0Budget) * 100);
+  const l0Percent = l0Bytes != null ? Math.round((l0Bytes / l0Budget) * 100) : null;
+  const unreviewed = vaultStatus?.unreviewed_claims;
+  const workspaces: string[] = vaultStatus?.workspaces ?? [];
+  const daemon = vaultStatus?.daemon as { active: boolean; detail: string } | undefined;
 
   return (
     <div className="space-y-6 pb-12">
@@ -41,7 +49,11 @@ export const TokenTelemetryView: React.FC<TokenTelemetryViewProps> = ({
             System Telemetry
           </h1>
           <p className="font-code-sm text-xs text-white/40 mt-1 uppercase tracking-widest">
-            Vault: D:\projects\second-brain • SQLite FTS5 Active
+            Vault: {vaultPath || vaultStatus?.vault || 'not connected'}
+            {' • '}
+            {vaultStatus?.index?.engine ? 'SQLite FTS5 Active' : 'index unavailable'}
+            {' • '}
+            daemon?.active ? 'daemon active' : 'daemon stopped'
           </p>
         </div>
 
@@ -74,9 +86,13 @@ export const TokenTelemetryView: React.FC<TokenTelemetryViewProps> = ({
             <span className="text-[10px] uppercase tracking-[0.25em] text-white/40">Active Truth Store</span>
             <span className="text-[#4ADE80] font-bold text-xs">FTS5</span>
           </div>
-          <div className="text-3xl md:text-4xl font-light text-white tracking-tight">{activeClaims} <span className="text-sm text-white/40">/ {totalClaims}</span></div>
+          <div className="text-3xl md:text-4xl font-light text-white tracking-tight">
+            {activeClaims ?? '--'} <span className="text-sm text-white/40">/ {totalClaims ?? '--'}</span>
+          </div>
           <div className="font-code-sm text-xs text-[#4ADE80] mt-3">
-            0 Conflicts • Chain Verified
+            {!backendUp
+              ? 'backend unreachable'
+              : `${unreviewed ?? 0} unreviewed \u2022 chain verified`}
           </div>
         </div>
 
@@ -84,11 +100,23 @@ export const TokenTelemetryView: React.FC<TokenTelemetryViewProps> = ({
         <div className="bg-[#111111] border border-white/10 p-6 rounded-3xl flex flex-col justify-between hover:border-white/20 transition-all">
           <div className="flex justify-between items-center mb-3">
             <span className="text-[10px] uppercase tracking-[0.25em] text-white/40">L0 Auto-Inject Budget</span>
-            <span className="text-[#C9A86A] font-bold text-xs">{l0Percent}%</span>
+            <span className="text-[#C9A86A] font-bold text-xs">
+              {l0Percent != null ? `${l0Percent}%` : '--'}
+            </span>
           </div>
-          <div className="text-3xl md:text-4xl font-light text-white tracking-tight">{l0Bytes} <span className="text-sm text-white/40">/ {l0Budget}B</span></div>
-          <div className="font-code-sm text-xs text-white/40 mt-3">
-            Enforced & Balanced (OK)
+          <div className="text-3xl md:text-4xl font-light text-white tracking-tight">
+            {l0Bytes ?? '--'} <span className="text-sm text-white/40">/ {l0Budget}B</span>
+          </div>
+          <div
+            className={`font-code-sm text-xs mt-3 ${
+              l0Percent != null && l0Percent > 100 ? 'text-[#f87171]' : 'text-white/40'
+            }`}
+          >
+            {l0Percent == null
+              ? 'backend unreachable'
+              : l0Percent > 100
+                ? 'OVER BUDGET \u2014 trim the brief'
+                : 'within the injected budget'}
           </div>
         </div>
 

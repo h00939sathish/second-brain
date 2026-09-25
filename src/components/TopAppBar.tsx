@@ -8,7 +8,10 @@ interface TopAppBarProps {
   onOpenSearch: () => void;
   onOpenSettings: () => void;
   onOpenNotifications: () => void;
-  activeDaemonSeconds: number;
+  daemon: { active: boolean; detail: string };
+  workspaces: string[];
+  workspace: string;
+  onSelectWorkspace: (workspace: string) => void;
   brandVariant: 'secondBrain' | 'antigravity';
 }
 
@@ -18,7 +21,10 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({
   onOpenSearch,
   onOpenSettings,
   onOpenNotifications,
-  activeDaemonSeconds,
+  daemon,
+  workspaces,
+  workspace,
+  onSelectWorkspace,
   brandVariant,
 }) => {
   return (
@@ -48,15 +54,46 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({
           </div>
         </div>
 
-        {/* Daemon Heartbeat Indicator */}
-        <div className="hidden sm:flex items-center gap-2.5 px-3 py-1.5 rounded-full bg-white/[0.04] border border-white/10 backdrop-blur-sm">
+        {/* Daemon state comes from the daemon's own heartbeat file. */}
+        <div
+          className="hidden sm:flex items-center gap-2.5 px-3 py-1.5 rounded-full bg-white/[0.04] border border-white/10 backdrop-blur-sm"
+          title={daemon.detail}
+        >
           <div className="relative flex items-center justify-center w-2 h-2">
-            <div className="absolute w-full h-full bg-[#C9A86A] rounded-full opacity-50 pulse-ring"></div>
-            <div className="w-1.5 h-1.5 bg-[#C9A86A] rounded-full shadow-[0_0_8px_#C9A86A]"></div>
+            {daemon.active && (
+              <div className="absolute w-full h-full bg-[#C9A86A] rounded-full opacity-50 pulse-ring"></div>
+            )}
+            <div
+              className={`w-1.5 h-1.5 rounded-full ${
+                daemon.active
+                  ? 'bg-[#C9A86A] shadow-[0_0_8px_#C9A86A]'
+                  : 'bg-white/30'
+              }`}
+            ></div>
           </div>
           <span className="font-code-sm text-[11px] text-white/70 tracking-wider">
-            Daemon: Active ({activeDaemonSeconds}s)
+            Daemon: {daemon.active ? 'Active' : 'Stopped'}
           </span>
+        </div>
+
+        {/* Workspace scope: which slice of the vault this view is showing. */}
+        <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.04] border border-white/10">
+          <span className="material-symbols-outlined text-white/40 text-[15px]">folder_open</span>
+          <select
+            value={workspace}
+            onChange={(e) => onSelectWorkspace(e.target.value)}
+            title="Scope every view to one workspace"
+            className="bg-transparent font-code-sm text-[11px] text-white/80 tracking-wider outline-none cursor-pointer"
+          >
+            <option value="" className="bg-[#111111]">
+              all workspaces
+            </option>
+            {workspaces.map((slug) => (
+              <option key={slug} value={slug} className="bg-[#111111]">
+                {slug}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 
