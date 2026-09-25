@@ -371,7 +371,7 @@ export const App: React.FC = () => {
             <NetworkLoadBalancerView
               queueTasks={queueTasks}
               daemonLoads={daemonLoads}
-              onDeployClick={() => setIsDeployOpen(true)}
+              onOpenDeployModal={() => setIsDeployOpen(true)}
             />
           )}
         </main>
@@ -402,7 +402,9 @@ export const App: React.FC = () => {
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         brandVariant={brandVariant}
-        onBrandChange={setBrandVariant}
+        onToggleBrand={() =>
+          setBrandVariant(brandVariant === 'secondBrain' ? 'antigravity' : 'secondBrain')
+        }
       />
 
       <NotificationsDrawer
@@ -433,7 +435,7 @@ export const App: React.FC = () => {
       <CreateTaskModal
         isOpen={isCreateTaskOpen}
         onClose={() => setIsCreateTaskOpen(false)}
-        onCreated={handleAddTask}
+        onAddTask={handleAddTask}
       />
 
       <DocsSupportModal
