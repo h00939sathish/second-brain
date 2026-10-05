@@ -1,12 +1,12 @@
-# Second Brain — workspace global (2026-09-24T18:47:20Z)
+# Second Brain — workspace global (2026-10-05T18:31:26Z)
 # Start here: `brain brief` | `brain start --agent <you> --files ...` | `brain recall "..."`
 
 ## Recent context
-- [h00939] commit 0c522c7: init [files: ] (global)
-- [h00939] commit af528c0: no bypass [files: a.txt ] (global)
+- [unknown] jarvis.indicator fixed + verified live (icon now tracks idle/speaking via socket probe).… (global)
 - [h00939] commit afc1a87: base [files: pkg/keep.py ] (global)
+- [h00939] commit af528c0: no bypass [files: a.txt ] (global)
 
-## Knowledge — global (21)
+## Knowledge — global (25)
 - Plan-debate pipeline: nemotron-3-ultra + minimax-m3 planners debate, gemini final review, deepseek builds via plan_debate.py… [[20260806-113234]]
 - Postgres port 5433 has schema v2 applied; connection pool max=10 [[20260827-bab441]]
 - OmniRoute (v3.8.48, localhost:20128, data C:\Users\h0093\.omniroute) failures diagnosed 2026-08-18: (1) Hermes default… [[20260818-a730d9]]
@@ -18,4 +18,4 @@
 - OmniRoute unused-but-valuable features (2026-08-10 audit): combos+routing (14 strategies, empty), fallback chains (empty), evals (empty)… [[20260810-e555db]]
 - OpenRouter connection 'main' keyed+synced but ZERO inference use as of 2026-08-10 (only model-sync calls); free-tier models work via… [[20260810-d1e811]]
 - OmniRoute gateway: dashboard password is default CHANGEME; auth via curl POST /api/auth/login (auth_token in Set-Cookie) — no CDP needed.… [[20260810-63919f]]
-- … and 10 more — run `brain recall "<question>"`
+- … and 14 more — run `brain recall "<question>"`

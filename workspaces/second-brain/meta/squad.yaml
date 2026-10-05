@@ -1,0 +1,7 @@
+name: second-brain-squad
+workspace: second-brain
+roles:
+  lead: hermes
+  builder: claude
+  reviewer: agy
+  qa: crush
