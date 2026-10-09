@@ -1,11 +1,11 @@
-# Second Brain — workspace jarvis (2026-10-05T18:31:26Z)
+# Second Brain — workspace jarvis (2026-10-09T18:30:38Z)
 # Start here: `brain brief` | `brain start --agent <you> --files ...` | `brain recall "..."`
 
 ## Live sessions
-- opencode → jarvis: Moonshine STT: STT_NUM_THREADS knob (2), switch to… [leases: ['config.py', '.env', '.env.example'…] (6d ago)
-- qoder → jarvis: JARVIS model research (lease refresh) — forensics done… [leases: ['JARVIS_MODEL_REQUIREMENTS.md', 'JARVIS_TASK_MATRIX.md'…] (13d ago)
-- claude → jarvis: Implement first phase of JARVIS deterministic fast command… [leases: ['assistant/command_matcher.py'…] (13d ago)
-- qoder → jarvis: Codebase-first local model research & selection for JARVIS… [leases: ['JARVIS_MODEL_REQUIREMENTS.md', 'JARVIS_TASK_MATRIX.md'…] (13d ago)
+- opencode → jarvis: Moonshine STT: STT_NUM_THREADS knob (2), switch to… [leases: ['config.py', '.env', '.env.example'…] (10d ago)
+- qoder → jarvis: JARVIS model research (lease refresh) — forensics done… [leases: ['JARVIS_MODEL_REQUIREMENTS.md', 'JARVIS_TASK_MATRIX.md'…] (17d ago)
+- claude → jarvis: Implement first phase of JARVIS deterministic fast command… [leases: ['assistant/command_matcher.py'…] (17d ago)
+- qoder → jarvis: Codebase-first local model research & selection for JARVIS… [leases: ['JARVIS_MODEL_REQUIREMENTS.md', 'JARVIS_TASK_MATRIX.md'…] (17d ago)
 
 ## Board (done: 1)
 

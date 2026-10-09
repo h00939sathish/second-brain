@@ -1,8 +1,8 @@
-# Second Brain — workspace second-brain (2026-10-05T18:31:26Z)
+# Second Brain — workspace second-brain (2026-10-09T18:30:38Z)
 # Start here: `brain brief` | `brain start --agent <you> --files ...` | `brain recall "..."`
 
 ## Live sessions
-- opencode → second-brain: Build self-selecting agent debate loop driven by seat… [leases: ['brain/debate_loop.py']] (6d ago)
+- opencode → second-brain: Build self-selecting agent debate loop driven by seat… [leases: ['brain/debate_loop.py']] (10d ago)
 
 ## Board (review: 2)
 - [REVIEW] t-20260924-9d5bfc: TRUST BOUNDARY HARDENING v1
@@ -12,9 +12,9 @@
 - t-20260924-9d5bfc [review] TRUST BOUNDARY HARDENING v1
 
 ## Recent context
-- [unknown] jarvis.indicator fixed + verified live (icon now tracks idle/speaking via socket probe).… (global)
-- [h00939] commit 7bd711a: chore(vault): event stream for the type-layer commits [files… (second-brain)
-- [h00939] commit 498cb01: docs(vault): claim for the missing React type layer, plus session… (second-brain)
+- [h00939] commit debc185: sweep 2026-10-05T18:31:26Z: 64 items processed [files… (second-brain)
+- [squad] Agents autonomously decided roles based on availability: lead=hermes, builder=claude… (second-brain)
+- [squad] Agents autonomously decided roles based on availability: lead=hermes, builder=claude… (second-brain)
 
 ## Knowledge — second-brain (19)
 - opencode process enforcement live via ~/.config/opencode/plugin/brain-guard.js (registered in global opencode.json): tool.execute.before… [[20260916-ffdaf0]]

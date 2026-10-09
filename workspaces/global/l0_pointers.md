@@ -1,4 +1,4 @@
-# Second Brain — workspace global (2026-10-05T18:31:26Z)
+# Second Brain — workspace global (2026-10-09T18:30:38Z)
 # Start here: `brain brief` | `brain start --agent <you> --files ...` | `brain recall "..."`
 
 ## Recent context

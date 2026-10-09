@@ -1,11 +1,11 @@
-# Second Brain — all workspaces (2026-10-05T18:31:26Z)
+# Second Brain — all workspaces (2026-10-09T18:30:39Z)
 # Start here: `brain brief` | `brain start --agent <you> --files ...` | `brain recall "..."`
 
 ## Live sessions
-- opencode → jarvis: Moonshine STT: STT_NUM_THREADS knob (2), switch to… [leases: ['config.py', '.env', '.env.example'…] (6d ago)
-- opencode → second-brain: Build self-selecting agent debate loop driven by seat… [leases: ['brain/debate_loop.py']] (6d ago)
-- opencode → titan: monitor and compare two TITAN audits (6d ago)
-- opencode → titan: notify TITAN auditors of doc repairs (6d ago)
+- opencode → jarvis: Moonshine STT: STT_NUM_THREADS knob (2), switch to… [leases: ['config.py', '.env', '.env.example'…] (10d ago)
+- opencode → second-brain: Build self-selecting agent debate loop driven by seat… [leases: ['brain/debate_loop.py']] (10d ago)
+- opencode → titan: monitor and compare two TITAN audits (10d ago)
+- opencode → titan: notify TITAN auditors of doc repairs (10d ago)
 
 ## Board (review: 4 | done: 6)
 - [REVIEW] t-20260901-81d55b: Fix brain_dispatch: opencode.cmd invocation fails with PowerShell…
@@ -14,9 +14,9 @@
 - [REVIEW] t-20260929-2d18c4: Council debate: post-fix re-run procedure (which experiments, virgin…
 
 ## Recent context
-- [unknown] jarvis.indicator fixed + verified live (icon now tracks idle/speaking via socket probe).… (global)
-- [h00939] commit 7bd711a: chore(vault): event stream for the type-layer commits [files… (second-brain)
-- [h00939] commit 498cb01: docs(vault): claim for the missing React type layer, plus session… (second-brain)
+- [h00939] commit debc185: sweep 2026-10-05T18:31:26Z: 64 items processed [files… (second-brain)
+- [squad] Agents autonomously decided roles based on availability: lead=hermes, builder=claude… (second-brain)
+- [squad] Agents autonomously decided roles based on availability: lead=hermes, builder=claude… (second-brain)
 
 ## Knowledge (79 active claims across 4 workspaces)
 - Plan-debate pipeline: nemotron-3-ultra + minimax-m3 planners debate, gemini final review, deepseek builds via plan_debate.py… [[20260806-113234]]
